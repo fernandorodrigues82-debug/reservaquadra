@@ -1,0 +1,40 @@
+name: Reserva Automática de Quadra
+
+on:
+  # Agendado: 02:40 UTC = 23:40 de Brasília (UTC-3).
+  # Acorda 20 min antes da meia-noite para absorver o atraso típico do
+  # cron do GitHub (10-30 min). O script gh_runner.py espera até 00:00:00
+  # exato de Brasília antes de disparar as reservas.
+  schedule:
+    - cron: '40 2 * * *'
+
+  # Permite disparar manualmente pelo botão "Run workflow" na aba Actions
+  # (útil para testar sem esperar a meia-noite).
+  workflow_dispatch:
+
+jobs:
+  reservar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Executar o robô de reserva
+        env:
+          TOWNSQ_EMAIL: ${{ secrets.TOWNSQ_EMAIL }}
+          TOWNSQ_SENHA: ${{ secrets.TOWNSQ_SENHA }}
+          TOWNSQ_LOGIN_URL: ${{ secrets.TOWNSQ_LOGIN_URL }}
+          HEADLESS: 'True'
+        run: python scheduler/gh_runner.py
