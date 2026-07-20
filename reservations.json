@@ -1,0 +1,19 @@
+{
+  "_comentario": "Edite este arquivo pelo navegador do GitHub (botão de lápis) para agendar reservas. Cada item da lista 'reservas' é um horário que o robô vai tentar reservar automaticamente à meia-noite do dia em que a janela abre (7 dias antes da data desejada).",
+  "_campos": {
+    "quadra": "Nome exato da quadra como aparece no TownSq",
+    "data_desejada": "Data em que você quer jogar, formato AAAA-MM-DD",
+    "horario_desejado": "Horario desejado, formato HH:MM (ex: 10:00)",
+    "dias_antecedencia_abertura": "Quantos dias antes a reserva abre (no seu caso, 7)",
+    "status": "Use 'agendado' para ativar. Mude para 'cancelado' para desativar sem apagar."
+  },
+  "reservas": [
+    {
+      "quadra": "Quadra de Tênis",
+      "data_desejada": "2026-08-01",
+      "horario_desejado": "10:00",
+      "dias_antecedencia_abertura": 7,
+      "status": "agendado"
+    }
+  ]
+}
