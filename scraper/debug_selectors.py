@@ -192,6 +192,37 @@ def main():
             else:
                 print("Nenhum elemento visível encontrado para clicar. Veja o diagnóstico acima.")
 
+        if STEP == "calendario":
+            # Navegação direta por URL (muito mais rápida/confiável que
+            # clicar menu por menu). IDs confirmados via STEP=quadra.
+            workspace_id = "5d1227602076280d76ee7868"
+            facility_id = "5d1661b2de19960da317d16d"  # Quadra de Tênis
+            page.goto(f"https://app.townsq.com.br/w/{workspace_id}/reservations/{facility_id}",
+                      wait_until="networkidle")
+            page.wait_for_timeout(2000)
+            descrever_pagina(page, "TELA DO CALENDÁRIO (via URL direta)",
+                              salvar_screenshot="screenshot_calendario.png")
+
+            # Diagnóstico: elementos que parecem ser dias do calendário
+            # (texto de 1 ou 2 dígitos, tipicamente div/span/button)
+            print("\n--- DIAGNÓSTICO: possíveis dias do calendário (texto 1-2 dígitos) ---")
+            candidatos = page.locator(
+                "xpath=//*[string-length(normalize-space(text()))<=2 "
+                "and translate(normalize-space(text()), '0123456789', '') = '' "
+                "and normalize-space(text()) != '']"
+            ).all()
+            print(f"Total de candidatos encontrados: {len(candidatos)}")
+            for i, el in enumerate(candidatos[:40]):  # limita a 40 pra não poluir o log
+                try:
+                    texto = el.inner_text().strip()
+                    visivel = el.is_visible()
+                    tag = el.evaluate("e => e.tagName")
+                    classe = el.evaluate("e => e.className")
+                    print(f"  [{i}] texto={texto!r} tag={tag!r} visivel={visivel} class={classe!r}")
+                except Exception as e:
+                    print(f"  [{i}] erro: {e}")
+            print("--- FIM DO DIAGNÓSTICO ---\n")
+
         browser.close()
 
 

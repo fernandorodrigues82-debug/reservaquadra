@@ -75,22 +75,23 @@ class TownSqClient:
         page.wait_for_timeout(2000)
         logger.info("Login realizado com sucesso.")
 
-    def navegar_para_reserva_quadra(self, quadra: str):
+    def navegar_para_reserva_quadra(self, quadra: str, mes_ano: str | None = None):
+        """
+        mes_ano no formato 'MM-YYYY', ex: '07-2026'. Se não informado, usa
+        o mês/ano atual do servidor.
+        """
         page = self._page
-        # "Reservas" abre um submenu lateral com "Dependências" e "Minhas Reservas"
-        page.get_by_text("Reservas", exact=True).first.click()
-        page.wait_for_timeout(1000)
+        # ID do workspace (condomínio) e da dependência "Quadra de Tênis",
+        # confirmados via debug_selectors.py. Navegação direta por URL é
+        # muito mais rápida e confiável do que clicar menu por menu.
+        workspace_id = "5d1227602076280d76ee7868"
+        facility_id = "5d1661b2de19960da317d16d"  # Quadra de Tênis
 
-        # "Dependências" leva à lista de áreas comuns (usamos o href, já que
-        # o texto do link vem com um "•" na frente: "• Dependências")
-        page.click('a[href$="/facilities"]')
-        page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(1500)
+        url = f"https://app.townsq.com.br/w/{workspace_id}/reservations/{facility_id}"
+        if mes_ano:
+            url += f"?month={mes_ano}"
 
-        # Clica diretamente no texto da quadra desejada (confirmado pelo
-        # usuário: é um link de texto verde na lista de dependências)
-        page.get_by_text(quadra, exact=True).first.click()
-        page.wait_for_load_state("networkidle")
+        page.goto(url, wait_until="networkidle")
         page.wait_for_timeout(1500)
 
     def tentar_reservar(self, data_desejada: date, horario_desejado: str) -> bool:
