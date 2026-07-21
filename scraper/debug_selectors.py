@@ -154,12 +154,43 @@ def main():
                               salvar_screenshot="screenshot_dependencias.png")
 
         if STEP == "quadra":
-            # Clica diretamente no texto "Quadra de Tênis" (confirmado pelo usuário)
-            page.get_by_text("Quadra de Tênis", exact=True).first.click()
-            page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(1500)
-            descrever_pagina(page, "TELA DA QUADRA DE TÊNIS (calendário)",
-                              salvar_screenshot="screenshot_quadra.png")
+            # Diagnóstico: em vez de tentar clicar direto (o que pode travar
+            # 30s se o elemento existir mas estiver "invisível" para o
+            # Playwright), primeiro investigamos POR QUE ele está assim.
+            print("\n--- DIAGNÓSTICO: elementos que contêm o texto 'Quadra de Tênis' ---")
+            matches = page.get_by_text("Quadra de Tênis", exact=False).all()
+            print(f"Total de elementos encontrados: {len(matches)}")
+            for i, el in enumerate(matches):
+                try:
+                    visivel = el.is_visible()
+                    box = el.bounding_box()
+                    tag = el.evaluate("e => e.tagName")
+                    classe = el.evaluate("e => e.className")
+                    html_pai = el.evaluate(
+                        "e => e.parentElement ? e.parentElement.outerHTML.slice(0, 300) : null"
+                    )
+                    print(f"\n[{i}] tag={tag!r} visivel={visivel} bounding_box={box}")
+                    print(f"    class={classe!r}")
+                    print(f"    HTML do elemento pai (300 chars): {html_pai!r}")
+                except Exception as e:
+                    print(f"[{i}] erro ao inspecionar: {e}")
+            print("--- FIM DO DIAGNÓSTICO ---\n")
+
+            # Tenta clicar em qualquer um dos elementos encontrados que já
+            # esteja visível (em vez de sempre pegar o primeiro/.first).
+            for el in matches:
+                try:
+                    if el.is_visible():
+                        el.click(timeout=5000)
+                        page.wait_for_load_state("networkidle")
+                        page.wait_for_timeout(1500)
+                        descrever_pagina(page, "TELA DA QUADRA DE TÊNIS (calendário)",
+                                          salvar_screenshot="screenshot_quadra.png")
+                        break
+                except Exception as e:
+                    print(f"Falha ao tentar clicar em elemento visível: {e}")
+            else:
+                print("Nenhum elemento visível encontrado para clicar. Veja o diagnóstico acima.")
 
         browser.close()
 
