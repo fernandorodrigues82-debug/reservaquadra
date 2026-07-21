@@ -39,7 +39,8 @@ class TownSqClient:
     def __enter__(self):
         self._playwright = sync_playwright().start()
         self._browser = self._playwright.chromium.launch(headless=self.headless)
-        self._page = self._browser.new_page()
+        # locale pt-BR para bater com a interface que o usuário vê no celular
+        self._page = self._browser.new_page(locale="pt-BR", timezone_id="America/Sao_Paulo")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -71,20 +72,21 @@ class TownSqClient:
 
     def navegar_para_reserva_quadra(self, quadra: str):
         page = self._page
-        # Confirmado via debug_selectors.py: "Reservations" abre um submenu
-        page.click("#menu--button--reservations")
+        # "Reservas" abre um submenu lateral com "Dependências" e "Minhas Reservas"
+        page.get_by_text("Reservas", exact=True).first.click()
         page.wait_for_timeout(1000)
 
-        # O submenu revela o link "Amenities" (áreas comuns)
-        page.get_by_text("Amenities", exact=False).first.click()
+        # "Dependências" leva à lista de áreas comuns (Churrasqueira, Quadra de
+        # Tênis, Salão de Festas, etc.)
+        page.get_by_text("Dependências", exact=True).first.click()
         page.wait_for_load_state("networkidle")
-        page.wait_for_timeout(2000)
+        page.wait_for_timeout(1500)
 
-        # TODO: a partir daqui ainda falta descobrir como selecionar a
-        # quadra de tênis especificamente dentro da lista de amenities
-        # (será ajustado no próximo STEP de descoberta).
-        page.get_by_text(quadra, exact=False).click()
+        # Clica diretamente no texto da quadra desejada (confirmado pelo
+        # usuário: é um link de texto verde na lista de dependências)
+        page.get_by_text(quadra, exact=True).first.click()
         page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(1500)
 
     def tentar_reservar(self, data_desejada: date, horario_desejado: str) -> bool:
         """

@@ -18,7 +18,8 @@ on:
           - senha
           - pos_login
           - reservas
-          - amenities
+          - dependencias
+          - quadra
 
 jobs:
   debug:

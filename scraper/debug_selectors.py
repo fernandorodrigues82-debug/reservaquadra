@@ -81,6 +81,15 @@ def descrever_pagina(page, titulo: str, salvar_screenshot: str | None = None):
         except Exception:
             pass
 
+    print("\n--- ELEMENTOS COM data-testid (comum em apps React) ---")
+    for el in page.locator("[data-testid]").all():
+        try:
+            texto = el.inner_text().strip().replace("\n", " ")[:40]
+            testid = el.get_attribute("data-testid")
+            print(f"  data-testid={testid!r} texto={texto!r}")
+        except Exception:
+            pass
+
     print(f"\n{'='*60}\nFIM DA DESCRIÇÃO: {titulo}\n{'='*60}\n")
 
 
@@ -91,7 +100,10 @@ def main():
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
-        page = browser.new_page()
+        # Forçar português do Brasil, igual à experiência real do usuário
+        # (sem isso, o TownSq mostra a interface em inglês e pode até levar
+        # a uma tela diferente / com menos opções).
+        page = browser.new_page(locale="pt-BR", extra_http_headers={"Accept-Language": "pt-BR,pt;q=0.9"})
 
         print(f"Abrindo {login_url} ...")
         page.goto(login_url, wait_until="networkidle")
@@ -125,18 +137,27 @@ def main():
             browser.close()
             return
 
-        if STEP in ("reservas", "amenities"):
-            # "Reservations" apenas abre um submenu (não navega sozinho)
-            page.click("#menu--button--reservations")
+        if STEP in ("reservas", "dependencias", "quadra"):
+            # "Reservas" abre um submenu lateral com "Dependências" e "Minhas Reservas"
+            page.get_by_text("Reservas", exact=True).first.click()
             page.wait_for_timeout(1000)
             descrever_pagina(page, "SUBMENU DE RESERVAS (aberto)", salvar_screenshot="screenshot_reservas.png")
 
-        if STEP == "amenities":
-            # O submenu revela o link "Amenities" -> é lá que ficam as áreas comuns
-            page.get_by_text("Amenities", exact=False).first.click()
+        if STEP in ("dependencias", "quadra"):
+            # "Dependências" leva à lista de áreas comuns
+            page.get_by_text("Dependências", exact=True).first.click()
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(2000)
-            descrever_pagina(page, "TELA DE AMENITIES (áreas comuns)", salvar_screenshot="screenshot_amenities.png")
+            page.wait_for_timeout(1500)
+            descrever_pagina(page, "TELA DE DEPENDÊNCIAS (lista de áreas comuns)",
+                              salvar_screenshot="screenshot_dependencias.png")
+
+        if STEP == "quadra":
+            # Clica diretamente no texto "Quadra de Tênis" (confirmado pelo usuário)
+            page.get_by_text("Quadra de Tênis", exact=True).first.click()
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(1500)
+            descrever_pagina(page, "TELA DA QUADRA DE TÊNIS (calendário)",
+                              salvar_screenshot="screenshot_quadra.png")
 
         browser.close()
 
