@@ -45,3 +45,12 @@ jobs:
           TOWNSQ_LOGIN_URL: ${{ secrets.TOWNSQ_LOGIN_URL }}
           STEP: ${{ github.event.inputs.step }}
         run: python scraper/debug_selectors.py
+
+      - name: Salvar screenshot (se houver)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshot-debug
+          path: screenshot_*.png
+          if-no-files-found: ignore
+          retention-days: 3

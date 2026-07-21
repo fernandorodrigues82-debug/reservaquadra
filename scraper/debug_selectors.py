@@ -39,8 +39,15 @@ SEL_EMAIL_INPUT = 'input[name="email"]'
 SEL_BOTAO_NEXT = "Next"  # texto do botão da 1ª etapa do login
 
 
-def descrever_pagina(page, titulo: str):
+def descrever_pagina(page, titulo: str, salvar_screenshot: str | None = None):
     print(f"\n{'='*60}\nDESCRIÇÃO DA TELA: {titulo}\nURL atual: {page.url}\n{'='*60}")
+
+    if salvar_screenshot:
+        try:
+            page.screenshot(path=salvar_screenshot, full_page=True)
+            print(f"(screenshot salvo em {salvar_screenshot})")
+        except Exception as e:
+            print(f"(falha ao salvar screenshot: {e})")
 
     print("\n--- CAMPOS DE INPUT (input/textarea) ---")
     for el in page.locator("input, textarea").all():
@@ -94,7 +101,9 @@ def main():
         page.fill(SEL_EMAIL_INPUT, email)
         page.get_by_role("button", name=SEL_BOTAO_NEXT).click()
         page.wait_for_load_state("networkidle")
-        descrever_pagina(page, "TELA DE LOGIN (etapa 2 - senha, esperado)")
+        page.wait_for_timeout(3000)  # margem extra para animações/transições SPA
+        descrever_pagina(page, "TELA DE LOGIN (etapa 2 - senha, esperado)",
+                          salvar_screenshot="screenshot_senha.png")
 
         if STEP == "senha":
             browser.close()
