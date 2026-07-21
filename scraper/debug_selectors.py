@@ -34,6 +34,10 @@ load_dotenv()
 
 STEP = os.getenv("STEP", "login")
 
+# Seletores já confirmados a partir da execução real (STEP=login)
+SEL_EMAIL_INPUT = 'input[name="email"]'
+SEL_BOTAO_NEXT = "Next"  # texto do botão da 1ª etapa do login
+
 
 def descrever_pagina(page, titulo: str):
     print(f"\n{'='*60}\nDESCRIÇÃO DA TELA: {titulo}\nURL atual: {page.url}\n{'='*60}")
@@ -80,20 +84,27 @@ def main():
 
         print(f"Abrindo {login_url} ...")
         page.goto(login_url, wait_until="networkidle")
-        descrever_pagina(page, "TELA DE LOGIN")
+        descrever_pagina(page, "TELA DE LOGIN (etapa 1 - email)")
 
         if STEP == "login":
             browser.close()
             return
 
-        # A partir daqui os seletores de login PRECISAM já estar corretos
-        # em scraper/townsq_client.py (ou ajustados abaixo manualmente antes
-        # de rodar o STEP=pos_login).
-        print("\nTentando login automático para prosseguir...")
-        # TODO: estes seletores serão substituídos assim que virmos a saída do STEP=login
-        page.fill('input[name="email"]', email)
+        # Etapa 1 confirmada: preencher email e clicar em "Next"
+        page.fill(SEL_EMAIL_INPUT, email)
+        page.get_by_role("button", name=SEL_BOTAO_NEXT).click()
+        page.wait_for_load_state("networkidle")
+        descrever_pagina(page, "TELA DE LOGIN (etapa 2 - senha, esperado)")
+
+        if STEP == "senha":
+            browser.close()
+            return
+
+        # TODO: os seletores abaixo (senha + botão final) ainda são placeholders
+        # até vermos a saída do STEP=senha. Serão ajustados na próxima rodada.
+        print("\nTentando preencher senha para prosseguir (seletores ainda placeholder)...")
         page.fill('input[name="password"]', senha)
-        page.click('button[type="submit"]')
+        page.get_by_role("button", name="Entrar").click()
         page.wait_for_load_state("networkidle")
         descrever_pagina(page, "TELA PÓS-LOGIN (menu principal)")
 

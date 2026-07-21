@@ -52,11 +52,17 @@ class TownSqClient:
         page = self._page
         page.goto(self.login_url, wait_until="networkidle")
 
-        # TODO: ajustar seletores conforme o `playwright codegen` gerar.
-        # Estes são os nomes de campo mais comuns em telas de login do TownSq.
+        # ETAPA 1 (confirmado via debug_selectors.py): preencher email e
+        # clicar em "Next". O TownSq usa login em duas etapas.
         page.fill('input[name="email"]', self.email)
+        page.get_by_role("button", name="Next").click()
+        page.wait_for_load_state("networkidle")
+
+        # TODO: ETAPA 2 (senha) ainda é placeholder — será corrigida assim
+        # que rodarmos STEP=senha no scraper/debug_selectors.py e virmos o
+        # seletor real do campo de senha e do botão final.
         page.fill('input[name="password"]', self.senha)
-        page.click('button[type="submit"]')
+        page.get_by_role("button", name="Entrar").click()
 
         # Espera a navegação pós-login (ajuste a URL/seletor de confirmação)
         page.wait_for_load_state("networkidle")
