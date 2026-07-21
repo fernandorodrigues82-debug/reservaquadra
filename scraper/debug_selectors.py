@@ -301,21 +301,36 @@ def main():
                 print(f"Não foi possível clicar em nenhuma célula do dia {dia_teste}.")
 
         if STEP == "confirmar":
-            # Navegação direta pro dia certo via URL (descoberto no STEP=horarios:
-            # clicar no dia muda a URL para incluir ?day=YYYY-MM-DD)
-            dia_teste = os.getenv("DIA_TESTE", "25")
-            hoje = datetime.now()
-            ano_mes = hoje.strftime("%Y-%m")
-            data_str = f"{ano_mes}-{int(dia_teste):02d}"
+            # IMPORTANTE: navegar direto por URL com ?day=YYYY-MM-DD NÃO
+            # funciona — o app ignora esse parâmetro e volta pra visão de
+            # mês (confirmado por teste real). O único jeito confiável é
+            # clicar na célula do dia no calendário (como no STEP=horarios).
             workspace_id = "5d1227602076280d76ee7868"
             facility_id = "5d1661b2de19960da317d16d"
-            url = (f"https://app.townsq.com.br/w/{workspace_id}/reservations/"
-                   f"{facility_id}?day={data_str}")
-            print(f"\nNavegando direto para {url} ...")
-            page.goto(url, wait_until="networkidle")
-            page.wait_for_timeout(2000)
-            descrever_pagina(page, f"TELA DO DIA {data_str} (via URL direta)",
-                              salvar_screenshot="screenshot_dia_direto.png")
+            page.goto(f"https://app.townsq.com.br/w/{workspace_id}/reservations/{facility_id}",
+                      wait_until="networkidle")
+            page.wait_for_timeout(1500)
+
+            dia_teste = os.getenv("DIA_TESTE", "25")
+            candidatos_dia = page.locator(
+                f"xpath=//div[contains(@class,'day-number') and normalize-space(text())='{dia_teste}']"
+            ).all()
+            clicou_dia = False
+            for el in candidatos_dia:
+                classe_ancestral = el.evaluate(
+                    "e => e.parentElement && e.parentElement.parentElement "
+                    "? e.parentElement.parentElement.className : null"
+                )
+                if classe_ancestral and "disabled" not in classe_ancestral:
+                    el.click(timeout=5000)
+                    clicou_dia = True
+                    break
+            if not clicou_dia:
+                print(f"Não foi possível clicar no dia {dia_teste}. Abortando STEP=confirmar.")
+                browser.close()
+                return
+            page.wait_for_timeout(1500)
+            print(f"Dia {dia_teste} clicado. URL agora: {page.url}")
 
             horario_teste = os.getenv("HORARIO_TESTE", "12:00 - 13:00")
             print(f"\n--- TENTANDO CLICAR NO HORÁRIO '{horario_teste}' ---")
@@ -324,6 +339,18 @@ def main():
                 page.wait_for_timeout(1500)
                 descrever_pagina(page, f"TELA APÓS CLICAR NO HORÁRIO '{horario_teste}'",
                                   salvar_screenshot="screenshot_apos_clicar_horario.png")
+
+                # Diagnóstico extra: verifica todos os elementos com
+                # id='confirm-button' (o app reusa esse id em vários modais)
+                # e mostra qual está de fato visível agora.
+                print("\n--- VERIFICANDO BOTÕES id='confirm-button' (pode haver vários, só 1 visível) ---")
+                for i, el in enumerate(page.locator("#confirm-button").all()):
+                    try:
+                        texto = el.inner_text().strip()
+                        visivel = el.is_visible()
+                        print(f"  [{i}] texto={texto!r} visivel={visivel}")
+                    except Exception as e:
+                        print(f"  [{i}] erro: {e}")
             except Exception as e:
                 print(f"Falha ao clicar no horário: {e}")
 
