@@ -125,11 +125,18 @@ def main():
             browser.close()
             return
 
-        if STEP == "reservas":
+        if STEP in ("reservas", "amenities"):
+            # "Reservations" apenas abre um submenu (não navega sozinho)
             page.click("#menu--button--reservations")
+            page.wait_for_timeout(1000)
+            descrever_pagina(page, "SUBMENU DE RESERVAS (aberto)", salvar_screenshot="screenshot_reservas.png")
+
+        if STEP == "amenities":
+            # O submenu revela o link "Amenities" -> é lá que ficam as áreas comuns
+            page.get_by_text("Amenities", exact=False).first.click()
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(2000)
-            descrever_pagina(page, "TELA DE RESERVAS", salvar_screenshot="screenshot_reservas.png")
+            descrever_pagina(page, "TELA DE AMENITIES (áreas comuns)", salvar_screenshot="screenshot_amenities.png")
 
         browser.close()
 

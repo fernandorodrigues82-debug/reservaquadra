@@ -71,13 +71,18 @@ class TownSqClient:
 
     def navegar_para_reserva_quadra(self, quadra: str):
         page = self._page
-        # Confirmado via debug_selectors.py: botão "Reservations" no menu principal
+        # Confirmado via debug_selectors.py: "Reservations" abre um submenu
         page.click("#menu--button--reservations")
+        page.wait_for_timeout(1000)
+
+        # O submenu revela o link "Amenities" (áreas comuns)
+        page.get_by_text("Amenities", exact=False).first.click()
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(2000)
 
         # TODO: a partir daqui ainda falta descobrir como selecionar a
-        # quadra de tênis especificamente (será ajustado no próximo STEP).
+        # quadra de tênis especificamente dentro da lista de amenities
+        # (será ajustado no próximo STEP de descoberta).
         page.get_by_text(quadra, exact=False).click()
         page.wait_for_load_state("networkidle")
 
