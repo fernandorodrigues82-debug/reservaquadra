@@ -192,7 +192,7 @@ def main():
             else:
                 print("Nenhum elemento visível encontrado para clicar. Veja o diagnóstico acima.")
 
-        if STEP == "calendario":
+        if STEP in ("calendario", "horarios"):
             # Navegação direta por URL (muito mais rápida/confiável que
             # clicar menu por menu). IDs confirmados via STEP=quadra.
             workspace_id = "5d1227602076280d76ee7868"
@@ -247,6 +247,57 @@ def main():
                     except Exception as e:
                         print(f"  Ancestral nível {nivel}: erro {e}")
             print("--- FIM DA INVESTIGAÇÃO ---\n")
+
+        if STEP == "horarios":
+            # Dia de teste configurável via variável de ambiente (padrão: 25)
+            dia_teste = os.getenv("DIA_TESTE", "25")
+            print(f"\n--- TENTANDO CLICAR NO DIA {dia_teste} (ignorando células 'disabled') ---")
+
+            candidatos_dia = page.locator(
+                f"xpath=//div[contains(@class,'day-number') and normalize-space(text())='{dia_teste}']"
+            ).all()
+            print(f"Total de células encontradas com texto '{dia_teste}': {len(candidatos_dia)}")
+
+            clicou = False
+            for i, el in enumerate(candidatos_dia):
+                try:
+                    classe_ancestral = el.evaluate(
+                        "e => e.parentElement && e.parentElement.parentElement "
+                        "? e.parentElement.parentElement.className : null"
+                    )
+                    print(f"  [{i}] classe do ancestral (nível 2): {classe_ancestral!r}")
+                    if classe_ancestral and "disabled" not in classe_ancestral:
+                        el.click(timeout=5000)
+                        print(f"  -> Clicou na célula [{i}] (não estava 'disabled')")
+                        clicou = True
+                        break
+                except Exception as e:
+                    print(f"  [{i}] erro: {e}")
+
+            if clicou:
+                page.wait_for_timeout(2000)
+                descrever_pagina(page, f"TELA APÓS CLICAR NO DIA {dia_teste} (horários)",
+                                  salvar_screenshot="screenshot_horarios.png")
+
+                # Diagnóstico extra: qualquer elemento com texto parecendo
+                # horário (HH:MM), comum em listas de slots de reserva
+                print("\n--- DIAGNÓSTICO: elementos com texto parecendo horário (HH:MM) ---")
+                slots = page.locator(
+                    "xpath=//*[contains(text(),':') and string-length(normalize-space(text()))<=8]"
+                ).all()
+                print(f"Total de possíveis horários encontrados: {len(slots)}")
+                for i, el in enumerate(slots[:40]):
+                    try:
+                        texto = el.inner_text().strip()
+                        visivel = el.is_visible()
+                        tag = el.evaluate("e => e.tagName")
+                        classe = el.evaluate("e => e.className")
+                        print(f"  [{i}] texto={texto!r} tag={tag!r} visivel={visivel} class={classe!r}")
+                    except Exception as e:
+                        print(f"  [{i}] erro: {e}")
+                print("--- FIM DO DIAGNÓSTICO ---\n")
+            else:
+                print(f"Não foi possível clicar em nenhuma célula do dia {dia_teste}.")
 
         browser.close()
 
