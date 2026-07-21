@@ -25,6 +25,7 @@ Cada rodada eu uso o texto que você colar para ir preenchendo os
 import os
 import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).parent.parent))
@@ -298,6 +299,33 @@ def main():
                 print("--- FIM DO DIAGNÓSTICO ---\n")
             else:
                 print(f"Não foi possível clicar em nenhuma célula do dia {dia_teste}.")
+
+        if STEP == "confirmar":
+            # Navegação direta pro dia certo via URL (descoberto no STEP=horarios:
+            # clicar no dia muda a URL para incluir ?day=YYYY-MM-DD)
+            dia_teste = os.getenv("DIA_TESTE", "25")
+            hoje = datetime.now()
+            ano_mes = hoje.strftime("%Y-%m")
+            data_str = f"{ano_mes}-{int(dia_teste):02d}"
+            workspace_id = "5d1227602076280d76ee7868"
+            facility_id = "5d1661b2de19960da317d16d"
+            url = (f"https://app.townsq.com.br/w/{workspace_id}/reservations/"
+                   f"{facility_id}?day={data_str}")
+            print(f"\nNavegando direto para {url} ...")
+            page.goto(url, wait_until="networkidle")
+            page.wait_for_timeout(2000)
+            descrever_pagina(page, f"TELA DO DIA {data_str} (via URL direta)",
+                              salvar_screenshot="screenshot_dia_direto.png")
+
+            horario_teste = os.getenv("HORARIO_TESTE", "12:00 - 13:00")
+            print(f"\n--- TENTANDO CLICAR NO HORÁRIO '{horario_teste}' ---")
+            try:
+                page.get_by_role("button", name=horario_teste, exact=True).click(timeout=5000)
+                page.wait_for_timeout(1500)
+                descrever_pagina(page, f"TELA APÓS CLICAR NO HORÁRIO '{horario_teste}'",
+                                  salvar_screenshot="screenshot_apos_clicar_horario.png")
+            except Exception as e:
+                print(f"Falha ao clicar no horário: {e}")
 
         browser.close()
 
