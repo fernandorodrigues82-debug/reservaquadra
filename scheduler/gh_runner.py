@@ -54,7 +54,15 @@ def carregar_reservas_pendentes():
     with open(RESERVATIONS_FILE, encoding="utf-8") as f:
         dados = json.load(f)
 
-    hoje = datetime.now(BRASILIA).date()
+    # O cron dispara às 23:40 do dia ANTERIOR à meia-noite que importa.
+    # Ex: dispara segunda 23:40, espera, e a "abertura" que acontece de fato
+    # é à meia-noite de terça. Por isso usamos hoje+1 (amanhã) como a data
+    # de abertura de verdade, não a data de hoje em que o cron disparou.
+    # Caso raro: se o GitHub atrasou tanto que o script só começou já depois
+    # da meia-noite, "hoje" já É o dia de abertura (não precisa +1).
+    agora = datetime.now(BRASILIA)
+    hoje = agora.date()
+    abertura_date = hoje if agora.hour == 0 else hoje + timedelta(days=1)
     pendentes = []
 
     # 1) Reservas pontuais (data fixa)
@@ -63,7 +71,7 @@ def carregar_reservas_pendentes():
             continue
         data_desejada = datetime.strptime(r["data_desejada"], "%Y-%m-%d").date()
         momento_abertura = data_desejada - timedelta(days=r["dias_antecedencia_abertura"])
-        if momento_abertura == hoje:
+        if momento_abertura == abertura_date:
             pendentes.append({
                 "quadra": r["quadra"],
                 "data_desejada": r["data_desejada"],
@@ -78,7 +86,7 @@ def carregar_reservas_pendentes():
         if dia_semana_alvo is None:
             logger.warning(f"dia_semana inválido na regra recorrente: {regra['dia_semana']!r}")
             continue
-        data_alvo = hoje + timedelta(days=regra["dias_antecedencia_abertura"])
+        data_alvo = abertura_date + timedelta(days=regra["dias_antecedencia_abertura"])
         if data_alvo.weekday() == dia_semana_alvo:
             pendentes.append({
                 "quadra": regra["quadra"],
