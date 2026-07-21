@@ -145,8 +145,9 @@ def main():
             descrever_pagina(page, "SUBMENU DE RESERVAS (aberto)", salvar_screenshot="screenshot_reservas.png")
 
         if STEP in ("dependencias", "quadra"):
-            # "Dependências" leva à lista de áreas comuns
-            page.get_by_text("Dependências", exact=True).first.click()
+            # "Dependências" leva à lista de áreas comuns (usamos o href, já
+            # que o texto do link vem com um "•" na frente: "• Dependências")
+            page.click('a[href$="/facilities"]')
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(1500)
             descrever_pagina(page, "TELA DE DEPENDÊNCIAS (lista de áreas comuns)",

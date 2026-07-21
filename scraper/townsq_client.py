@@ -81,9 +81,9 @@ class TownSqClient:
         page.get_by_text("Reservas", exact=True).first.click()
         page.wait_for_timeout(1000)
 
-        # "Dependências" leva à lista de áreas comuns (Churrasqueira, Quadra de
-        # Tênis, Salão de Festas, etc.)
-        page.get_by_text("Dependências", exact=True).first.click()
+        # "Dependências" leva à lista de áreas comuns (usamos o href, já que
+        # o texto do link vem com um "•" na frente: "• Dependências")
+        page.click('a[href$="/facilities"]')
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(1500)
 
