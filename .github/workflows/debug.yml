@@ -34,6 +34,9 @@ on:
         default: '12:00 - 13:00'
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   debug:
     runs-on: ubuntu-latest
@@ -63,11 +66,17 @@ jobs:
           HORARIO_TESTE: ${{ github.event.inputs.horario_teste }}
         run: python scraper/debug_selectors.py
 
-      - name: Salvar screenshot (se houver)
+      - name: Salvar screenshots direto no repositório (se houver)
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshot-debug
-          path: screenshot_*.png
-          if-no-files-found: ignore
-          retention-days: 3
+        run: |
+          if ls screenshot_*.png >/dev/null 2>&1; then
+            mkdir -p debug_screenshots
+            mv screenshot_*.png debug_screenshots/
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add debug_screenshots/
+            git commit -m "Screenshots de debug (run ${{ github.run_id }})" || echo "nada para commitar"
+            git push
+          else
+            echo "Nenhum screenshot gerado nesta execução."
+          fi
