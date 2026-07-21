@@ -230,13 +230,19 @@ def main():
             print("\n--- INVESTIGANDO ATRIBUTOS DE DATA COMPLETA (ancestrais) ---")
             if candidatos:
                 exemplo = candidatos[20]  # um dia do "meio" do mês, com folga de contexto
+                js_template = (
+                    "(e) => { "
+                    "let el = e; "
+                    "for (let i = 0; i < NIVEL; i++) { "
+                    "  if (!el.parentElement) return null; "
+                    "  el = el.parentElement; "
+                    "} "
+                    "return el.outerHTML.slice(0, 400); "
+                    "}"
+                )
                 for nivel in range(1, 5):
                     try:
-                        html = exemplo.evaluate(
-                            f"e => {{ let el = e; for (let i=0; i<{nivel}; i++) "
-                            "{ if (!el.parentElement) return null; el = el.parentElement; } "
-                            "return el.outerHTML.slice(0, 400); }}"
-                        )
+                        html = exemplo.evaluate(js_template.replace("NIVEL", str(nivel)))
                         print(f"  Ancestral nível {nivel}: {html!r}")
                     except Exception as e:
                         print(f"  Ancestral nível {nivel}: erro {e}")
