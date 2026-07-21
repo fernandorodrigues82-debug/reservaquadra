@@ -38,6 +38,10 @@ STEP = os.getenv("STEP", "login")
 SEL_EMAIL_INPUT = 'input[name="email"]'
 SEL_BOTAO_NEXT = "Next"  # texto do botão da 1ª etapa do login
 
+# Seletores já confirmados a partir da execução real (STEP=senha)
+SEL_SENHA_INPUT = "#password-form--input--email"  # é um input de senha, apesar do id
+SEL_BOTAO_LOGIN = "Log in"
+
 
 def descrever_pagina(page, titulo: str, salvar_screenshot: str | None = None):
     print(f"\n{'='*60}\nDESCRIÇÃO DA TELA: {titulo}\nURL atual: {page.url}\n{'='*60}")
@@ -109,13 +113,13 @@ def main():
             browser.close()
             return
 
-        # TODO: os seletores abaixo (senha + botão final) ainda são placeholders
-        # até vermos a saída do STEP=senha. Serão ajustados na próxima rodada.
-        print("\nTentando preencher senha para prosseguir (seletores ainda placeholder)...")
-        page.fill('input[name="password"]', senha)
-        page.get_by_role("button", name="Entrar").click()
+        # Etapa 2 confirmada: preencher senha e clicar em "Log in"
+        page.fill(SEL_SENHA_INPUT, senha)
+        page.get_by_role("button", name=SEL_BOTAO_LOGIN).click()
         page.wait_for_load_state("networkidle")
-        descrever_pagina(page, "TELA PÓS-LOGIN (menu principal)")
+        page.wait_for_timeout(3000)
+        descrever_pagina(page, "TELA PÓS-LOGIN (menu principal)",
+                          salvar_screenshot="screenshot_pos_login.png")
 
         if STEP == "pos_login":
             browser.close()
@@ -125,7 +129,8 @@ def main():
             # TODO: ajustar o texto do link conforme aparecer no STEP=pos_login
             page.get_by_text("Reservas", exact=False).first.click()
             page.wait_for_load_state("networkidle")
-            descrever_pagina(page, "TELA DE RESERVAS")
+            page.wait_for_timeout(2000)
+            descrever_pagina(page, "TELA DE RESERVAS", salvar_screenshot="screenshot_reservas.png")
 
         browser.close()
 

@@ -57,16 +57,17 @@ class TownSqClient:
         page.fill('input[name="email"]', self.email)
         page.get_by_role("button", name="Next").click()
         page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(3000)  # SPA leva um instante para montar a tela seguinte
 
-        # TODO: ETAPA 2 (senha) ainda é placeholder — será corrigida assim
-        # que rodarmos STEP=senha no scraper/debug_selectors.py e virmos o
-        # seletor real do campo de senha e do botão final.
-        page.fill('input[name="password"]', self.senha)
-        page.get_by_role("button", name="Entrar").click()
+        # ETAPA 2 (confirmado via debug_selectors.py): preencher senha e
+        # clicar em "Log in".
+        page.fill("#password-form--input--email", self.senha)
+        page.get_by_role("button", name="Log in").click()
 
-        # Espera a navegação pós-login (ajuste a URL/seletor de confirmação)
+        # Espera a navegação pós-login
         page.wait_for_load_state("networkidle")
-        logger.info("Login realizado (ou ao menos submetido) com sucesso.")
+        page.wait_for_timeout(2000)
+        logger.info("Login realizado com sucesso.")
 
     def navegar_para_reserva_quadra(self, quadra: str):
         page = self._page
