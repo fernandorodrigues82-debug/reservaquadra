@@ -19,11 +19,16 @@ COMO DESCOBRIR OS SELETORES CERTOS (mais fácil que ler HTML na mão):
 """
 import logging
 import os
+import re
 from datetime import date
 
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 logger = logging.getLogger("townsq_client")
+
+# Aceita PT ou EN, já que o TownSq muda os textos conforme o locale do navegador
+BOTAO_NEXT = re.compile(r"Next|Próximo", re.IGNORECASE)
+BOTAO_LOGIN = re.compile(r"Log in|Entrar", re.IGNORECASE)
 
 
 class TownSqClient:
@@ -54,16 +59,16 @@ class TownSqClient:
         page.goto(self.login_url, wait_until="networkidle")
 
         # ETAPA 1 (confirmado via debug_selectors.py): preencher email e
-        # clicar em "Next". O TownSq usa login em duas etapas.
+        # clicar em "Next"/"Próximo". O TownSq usa login em duas etapas.
         page.fill('input[name="email"]', self.email)
-        page.get_by_role("button", name="Next").click()
+        page.get_by_role("button", name=BOTAO_NEXT).click()
         page.wait_for_load_state("networkidle")
         page.wait_for_timeout(3000)  # SPA leva um instante para montar a tela seguinte
 
         # ETAPA 2 (confirmado via debug_selectors.py): preencher senha e
-        # clicar em "Log in".
+        # clicar em "Log in"/"Entrar".
         page.fill("#password-form--input--email", self.senha)
-        page.get_by_role("button", name="Log in").click()
+        page.get_by_role("button", name=BOTAO_LOGIN).click()
 
         # Espera a navegação pós-login
         page.wait_for_load_state("networkidle")

@@ -23,6 +23,7 @@ Cada rodada eu uso o texto que você colar para ir preenchendo os
 "# TODO" reais em scraper/townsq_client.py.
 """
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -36,11 +37,11 @@ STEP = os.getenv("STEP", "login")
 
 # Seletores já confirmados a partir da execução real (STEP=login)
 SEL_EMAIL_INPUT = 'input[name="email"]'
-SEL_BOTAO_NEXT = "Next"  # texto do botão da 1ª etapa do login
+SEL_BOTAO_NEXT = re.compile(r"Next|Próximo", re.IGNORECASE)  # aceita PT ou EN
 
 # Seletores já confirmados a partir da execução real (STEP=senha)
 SEL_SENHA_INPUT = "#password-form--input--email"  # é um input de senha, apesar do id
-SEL_BOTAO_LOGIN = "Log in"
+SEL_BOTAO_LOGIN = re.compile(r"Log in|Entrar", re.IGNORECASE)  # aceita PT ou EN
 
 
 def descrever_pagina(page, titulo: str, salvar_screenshot: str | None = None):
