@@ -71,10 +71,13 @@ class TownSqClient:
 
     def navegar_para_reserva_quadra(self, quadra: str):
         page = self._page
-        # TODO: navegar até a seção "Reservas" > "Áreas comuns" > quadra específica.
-        # Exemplo genérico (ajustar com o codegen):
-        page.get_by_role("link", name="Reservas").click()
-        page.get_by_role("link", name="Áreas comuns").click()
+        # Confirmado via debug_selectors.py: botão "Reservations" no menu principal
+        page.click("#menu--button--reservations")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(2000)
+
+        # TODO: a partir daqui ainda falta descobrir como selecionar a
+        # quadra de tênis especificamente (será ajustado no próximo STEP).
         page.get_by_text(quadra, exact=False).click()
         page.wait_for_load_state("networkidle")
 

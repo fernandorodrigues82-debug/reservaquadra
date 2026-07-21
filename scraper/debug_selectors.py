@@ -126,8 +126,7 @@ def main():
             return
 
         if STEP == "reservas":
-            # TODO: ajustar o texto do link conforme aparecer no STEP=pos_login
-            page.get_by_text("Reservas", exact=False).first.click()
+            page.click("#menu--button--reservations")
             page.wait_for_load_state("networkidle")
             page.wait_for_timeout(2000)
             descrever_pagina(page, "TELA DE RESERVAS", salvar_screenshot="screenshot_reservas.png")
