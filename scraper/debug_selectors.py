@@ -223,6 +223,25 @@ def main():
                     print(f"  [{i}] erro: {e}")
             print("--- FIM DO DIAGNÓSTICO ---\n")
 
+            # Investiga se existe um atributo com a data completa (ex:
+            # data-date="2026-07-21") em algum ancestral do dia — isso evita
+            # ambiguidade quando o mesmo número de dia aparece em meses
+            # diferentes na grade do calendário.
+            print("\n--- INVESTIGANDO ATRIBUTOS DE DATA COMPLETA (ancestrais) ---")
+            if candidatos:
+                exemplo = candidatos[20]  # um dia do "meio" do mês, com folga de contexto
+                for nivel in range(1, 5):
+                    try:
+                        html = exemplo.evaluate(
+                            f"e => {{ let el = e; for (let i=0; i<{nivel}; i++) "
+                            "{ if (!el.parentElement) return null; el = el.parentElement; } "
+                            "return el.outerHTML.slice(0, 400); }}"
+                        )
+                        print(f"  Ancestral nível {nivel}: {html!r}")
+                    except Exception as e:
+                        print(f"  Ancestral nível {nivel}: erro {e}")
+            print("--- FIM DA INVESTIGAÇÃO ---\n")
+
         browser.close()
 
 
