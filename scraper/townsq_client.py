@@ -97,23 +97,54 @@ class TownSqClient:
     def tentar_reservar(self, data_desejada: date, horario_desejado: str) -> bool:
         """
         Tenta efetivar a reserva para a data/horário desejados.
+        horario_desejado pode ser um horário fixo ("10:00") ou o valor
+        especial "primeiro_disponivel", que pega o horário mais cedo livre.
+
         Retorna True se a reserva foi confirmada, False se o horário
         ainda não está disponível / já foi tomado por outra pessoa.
         """
         page = self._page
         data_str = data_desejada.strftime("%d/%m/%Y")
+        dia_numero = str(data_desejada.day)
 
         try:
-            # TODO: selecionar a data no calendário da tela de reservas
-            page.get_by_label("Selecionar data").fill(data_str)
+            # ETAPA 1 (confirmada): clicar na célula do dia certo no calendário,
+            # ignorando células "disabled" (dias passados/de outro mês, que
+            # podem repetir o mesmo número no início/fim da grade).
+            candidatos_dia = page.locator(
+                f"xpath=//div[contains(@class,'day-number') and normalize-space(text())='{dia_numero}']"
+            ).all()
+            celula_clicada = False
+            for el in candidatos_dia:
+                classe_ancestral = el.evaluate(
+                    "e => e.parentElement && e.parentElement.parentElement "
+                    "? e.parentElement.parentElement.className : null"
+                )
+                if classe_ancestral and "disabled" not in classe_ancestral:
+                    el.click(timeout=5000)
+                    celula_clicada = True
+                    break
+            if not celula_clicada:
+                logger.warning(f"Dia {dia_numero} não encontrado ou está desabilitado.")
+                return False
+            page.wait_for_timeout(1500)
 
-            # TODO: selecionar o horário desejado na lista de slots
+            # TODO: ETAPA 2 (seleção do horário) — ainda placeholder até
+            # confirmarmos a estrutura real dos horários (STEP=horarios no
+            # debug_selectors.py). Por ora, tenta o texto do horário
+            # diretamente; "primeiro_disponivel" ainda não está implementado.
+            if horario_desejado == "primeiro_disponivel":
+                raise NotImplementedError(
+                    "Seleção de 'primeiro_disponivel' ainda não implementada — "
+                    "aguardando dados do STEP=horarios."
+                )
             slot = page.get_by_text(horario_desejado, exact=True)
             slot.wait_for(state="visible", timeout=3000)
             slot.click()
 
-            # TODO: botão final de confirmação
-            page.get_by_role("button", name="Confirmar reserva").click()
+            # TODO: botão final de confirmação (provavelmente id="confirm-button",
+            # texto "Reservar" — confirmar com STEP=horarios)
+            page.get_by_role("button", name="Reservar").click()
 
             # TODO: elemento que confirma sucesso (toast, modal, etc.)
             page.get_by_text("Reserva confirmada", exact=False).wait_for(timeout=5000)

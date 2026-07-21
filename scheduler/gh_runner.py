@@ -41,22 +41,51 @@ logging.basicConfig(
 logger = logging.getLogger("gh_runner")
 
 
+DIAS_SEMANA_PT = {
+    "segunda": 0, "terça": 1, "terca": 1, "quarta": 2, "quinta": 3,
+    "sexta": 4, "sabado": 5, "sábado": 5, "domingo": 6,
+}
+
+
 def carregar_reservas_pendentes():
     if not RESERVATIONS_FILE.exists():
         logger.warning(f"Arquivo {RESERVATIONS_FILE} não encontrado. Nada a fazer.")
         return []
     with open(RESERVATIONS_FILE, encoding="utf-8") as f:
         dados = json.load(f)
-    # Só reservas cujo "momento de abertura" é HOJE (à meia-noite que está chegando)
+
     hoje = datetime.now(BRASILIA).date()
     pendentes = []
+
+    # 1) Reservas pontuais (data fixa)
     for r in dados.get("reservas", []):
         if r.get("status") != "agendado":
             continue
         data_desejada = datetime.strptime(r["data_desejada"], "%Y-%m-%d").date()
         momento_abertura = data_desejada - timedelta(days=r["dias_antecedencia_abertura"])
         if momento_abertura == hoje:
-            pendentes.append(r)
+            pendentes.append({
+                "quadra": r["quadra"],
+                "data_desejada": r["data_desejada"],
+                "horario_desejado": r["horario_desejado"],
+            })
+
+    # 2) Regras recorrentes (toda semana no mesmo dia da semana)
+    for regra in dados.get("regras_recorrentes", []):
+        if regra.get("status") != "ativo":
+            continue
+        dia_semana_alvo = DIAS_SEMANA_PT.get(regra["dia_semana"].lower())
+        if dia_semana_alvo is None:
+            logger.warning(f"dia_semana inválido na regra recorrente: {regra['dia_semana']!r}")
+            continue
+        data_alvo = hoje + timedelta(days=regra["dias_antecedencia_abertura"])
+        if data_alvo.weekday() == dia_semana_alvo:
+            pendentes.append({
+                "quadra": regra["quadra"],
+                "data_desejada": data_alvo.strftime("%Y-%m-%d"),
+                "horario_desejado": regra["horario"],
+            })
+
     return pendentes
 
 

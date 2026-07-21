@@ -1,19 +1,27 @@
 {
-  "_comentario": "Edite este arquivo pelo navegador do GitHub (botão de lápis) para agendar reservas. Cada item da lista 'reservas' é um horário que o robô vai tentar reservar automaticamente à meia-noite do dia em que a janela abre (7 dias antes da data desejada).",
-  "_campos": {
+  "_comentario": "Edite este arquivo pelo navegador do GitHub (botão de lápis) para configurar reservas. Use 'regras_recorrentes' para uma reserva automática toda semana (ex: toda terça, primeiro horário livre). Use 'reservas' para uma reserva pontual em uma data específica.",
+  "_campos_regra_recorrente": {
+    "quadra": "Nome exato da quadra como aparece no TownSq",
+    "dia_semana": "segunda | terça | quarta | quinta | sexta | sabado | domingo",
+    "horario": "'primeiro_disponivel' para pegar o horário mais cedo livre, ou um horário fixo tipo '10:00'",
+    "dias_antecedencia_abertura": "Quantos dias antes a reserva abre (no seu caso, 7)",
+    "status": "'ativo' para manter rodando toda semana. 'pausado' para desativar sem apagar."
+  },
+  "regras_recorrentes": [
+    {
+      "quadra": "Quadra de Tênis",
+      "dia_semana": "terça",
+      "horario": "primeiro_disponivel",
+      "dias_antecedencia_abertura": 7,
+      "status": "ativo"
+    }
+  ],
+  "_campos_reserva_pontual": {
     "quadra": "Nome exato da quadra como aparece no TownSq",
     "data_desejada": "Data em que você quer jogar, formato AAAA-MM-DD",
-    "horario_desejado": "Horario desejado, formato HH:MM (ex: 10:00)",
+    "horario_desejado": "Horario desejado, formato HH:MM (ex: 10:00), ou 'primeiro_disponivel'",
     "dias_antecedencia_abertura": "Quantos dias antes a reserva abre (no seu caso, 7)",
     "status": "Use 'agendado' para ativar. Mude para 'cancelado' para desativar sem apagar."
   },
-  "reservas": [
-    {
-      "quadra": "Quadra de Tênis",
-      "data_desejada": "2026-08-01",
-      "horario_desejado": "10:00",
-      "dias_antecedencia_abertura": 7,
-      "status": "agendado"
-    }
-  ]
+  "reservas": []
 }
