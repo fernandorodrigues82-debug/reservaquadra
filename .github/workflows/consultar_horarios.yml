@@ -1,0 +1,52 @@
+name: Consultar Horários Disponíveis
+
+# Disparado pelo painel Streamlit (via API) quando o usuário quer ver os
+# horários livres de uma data antes de agendar uma reserva pontual.
+# Também pode ser disparado manualmente pela aba Actions para testes.
+
+on:
+  workflow_dispatch:
+    inputs:
+      data:
+        description: 'Data a consultar (formato AAAA-MM-DD)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  consultar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Baixar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements-bot.txt
+          playwright install --with-deps chromium
+
+      - name: Consultar horários
+        env:
+          TOWNSQ_EMAIL: ${{ secrets.TOWNSQ_EMAIL }}
+          TOWNSQ_SENHA: ${{ secrets.TOWNSQ_SENHA }}
+          TOWNSQ_LOGIN_URL: ${{ secrets.TOWNSQ_LOGIN_URL }}
+          HEADLESS: 'True'
+          DATA: ${{ github.event.inputs.data }}
+        run: python scraper/consultar_horarios.py
+
+      - name: Salvar resultado no repositório
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add horarios_disponiveis/
+          git commit -m "Consulta de horários: ${{ github.event.inputs.data }}" || echo "nada para commitar"
+          git push

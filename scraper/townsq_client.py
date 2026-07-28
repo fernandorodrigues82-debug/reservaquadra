@@ -94,6 +94,55 @@ class TownSqClient:
         page.goto(url, wait_until="networkidle")
         page.wait_for_timeout(1500)
 
+    def selecionar_dia(self, data_desejada: date) -> bool:
+        """
+        Clica na célula do dia certo no calendário, ignorando células
+        "disabled" (dias passados/de outro mês, que podem repetir o mesmo
+        número no início/fim da grade). Retorna True se conseguiu clicar.
+        """
+        page = self._page
+        dia_numero = str(data_desejada.day)
+
+        candidatos_dia = page.locator(
+            f"xpath=//div[contains(@class,'day-number') and normalize-space(text())='{dia_numero}']"
+        ).all()
+        for el in candidatos_dia:
+            classe_ancestral = el.evaluate(
+                "e => e.parentElement && e.parentElement.parentElement "
+                "? e.parentElement.parentElement.className : null"
+            )
+            if classe_ancestral and "disabled" not in classe_ancestral:
+                el.click(timeout=5000)
+                page.wait_for_timeout(1500)
+                return True
+        return False
+
+    def listar_horarios_disponiveis(self, data_desejada: date) -> list[str]:
+        """
+        Navega até o dia informado e retorna a lista de horários realmente
+        disponíveis (não inclui os que caíram em "Fila de espera").
+        Não reserva nada — só consulta.
+        """
+        page = self._page
+        if not self.selecionar_dia(data_desejada):
+            return []
+
+        botoes_texto = page.locator("button").all_inner_texts()
+        padrao_horario = re.compile(r"^\d{2}:\d{2} - \d{2}:\d{2}$")
+
+        disponiveis = []
+        i = 0
+        while i < len(botoes_texto):
+            texto = botoes_texto[i].strip()
+            if padrao_horario.match(texto):
+                proximo = botoes_texto[i + 1].strip() if i + 1 < len(botoes_texto) else ""
+                if proximo == "Fila de espera":
+                    i += 2  # pula o horário lotado e o botão "Fila de espera"
+                    continue
+                disponiveis.append(texto)
+            i += 1
+        return disponiveis
+
     def tentar_reservar(self, data_desejada: date, horario_desejado: str) -> bool:
         """
         Tenta efetivar a reserva para a data/horário desejados.
@@ -106,29 +155,12 @@ class TownSqClient:
         """
         page = self._page
         data_str = data_desejada.strftime("%d/%m/%Y")
-        dia_numero = str(data_desejada.day)
 
         try:
-            # ETAPA 1: clicar na célula do dia certo no calendário, ignorando
-            # células "disabled" (dias passados/de outro mês, que podem
-            # repetir o mesmo número no início/fim da grade).
-            candidatos_dia = page.locator(
-                f"xpath=//div[contains(@class,'day-number') and normalize-space(text())='{dia_numero}']"
-            ).all()
-            celula_clicada = False
-            for el in candidatos_dia:
-                classe_ancestral = el.evaluate(
-                    "e => e.parentElement && e.parentElement.parentElement "
-                    "? e.parentElement.parentElement.className : null"
-                )
-                if classe_ancestral and "disabled" not in classe_ancestral:
-                    el.click(timeout=5000)
-                    celula_clicada = True
-                    break
-            if not celula_clicada:
-                logger.warning(f"Dia {dia_numero} não encontrado ou está desabilitado.")
+            # ETAPA 1: selecionar o dia certo no calendário.
+            if not self.selecionar_dia(data_desejada):
+                logger.warning(f"Dia {data_desejada.day} não encontrado ou está desabilitado.")
                 return False
-            page.wait_for_timeout(1500)
 
             # ETAPA 2: escolher o horário. Os slots são botões com texto
             # "HH:MM - HH:MM". Quando um horário de 1h está lotado, o botão

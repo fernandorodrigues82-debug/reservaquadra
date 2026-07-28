@@ -15,6 +15,7 @@ Configuração necessária (Streamlit secrets — veja README.md):
 """
 import base64
 import json
+import time
 from datetime import datetime, timedelta
 
 import requests
@@ -87,6 +88,48 @@ def salvar_reservations_json(token, repo, dados, sha, mensagem):
         st.error(f"Erro ao salvar no GitHub (HTTP {resp.status_code}): {detalhe}")
         st.stop()
     st.cache_data.clear()
+
+
+def disparar_consulta_horarios(token, repo, data_str):
+    """Dispara o workflow 'Consultar Horários Disponíveis' via GitHub API."""
+    resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/actions/workflows/consultar_horarios.yml/dispatches",
+        headers=github_headers(token),
+        json={"ref": "main", "inputs": {"data": data_str}},
+        timeout=15,
+    )
+    if not resp.ok:
+        detalhe = ""
+        try:
+            detalhe = resp.json().get("message", "")
+        except Exception:
+            detalhe = resp.text[:300]
+        raise RuntimeError(
+            f"HTTP {resp.status_code}: {detalhe}. "
+            "Verifique se o token tem permissão 'Actions: Read and write'."
+        )
+
+
+def esperar_resultado_consulta(token, repo, data_str, timeout_segundos=150, intervalo=5):
+    """
+    Espera o arquivo horarios_disponiveis/{data_str}.json aparecer no repo
+    (criado pelo workflow disparado). Faz polling simples via API.
+    """
+    caminho = f"horarios_disponiveis/{data_str}.json"
+    inicio = time.time()
+    # Pequena espera inicial para o workflow começar a rodar
+    time.sleep(10)
+    while time.time() - inicio < timeout_segundos:
+        resp = requests.get(
+            f"{GITHUB_API}/repos/{repo}/contents/{caminho}",
+            headers=github_headers(token),
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            conteudo = base64.b64decode(resp.json()["content"]).decode("utf-8")
+            return json.loads(conteudo)
+        time.sleep(intervalo)
+    raise TimeoutError(f"Arquivo {caminho} não apareceu a tempo.")
 
 
 token, repo = get_config()
@@ -202,35 +245,88 @@ with tab_pontual:
 
     st.divider()
     st.subheader("Nova reserva pontual")
+
+    st.markdown("**1. Escolha a data e consulte os horários livres de verdade**")
+    col_data, col_botao = st.columns([2, 1])
+    with col_data:
+        data_consulta = st.date_input(
+            "Data em que você quer jogar",
+            value=datetime.now().date() + timedelta(days=7),
+            key="data_consulta",
+        )
+    with col_botao:
+        st.write("")  # alinhamento vertical
+        consultar = st.button("🔍 Consultar horários", use_container_width=True)
+
+    data_consulta_str = data_consulta.strftime("%Y-%m-%d")
+
+    if consultar:
+        with st.spinner(
+            "Consultando o TownSq de verdade (login + navegação)... "
+            "isso leva de 1 a 2 minutos, por favor aguarde."
+        ):
+            try:
+                disparar_consulta_horarios(token, repo, data_consulta_str)
+                resultado = esperar_resultado_consulta(token, repo, data_consulta_str)
+                st.session_state["horarios_consultados"] = resultado
+                st.session_state["horarios_consultados_data"] = data_consulta_str
+            except TimeoutError:
+                st.error(
+                    "A consulta demorou demais e não terminou a tempo. "
+                    "Confira a aba Actions do GitHub para ver o que aconteceu, "
+                    "ou tente de novo."
+                )
+            except Exception as e:
+                st.error(f"Erro ao consultar horários: {e}")
+
+    resultado_atual = None
+    if st.session_state.get("horarios_consultados_data") == data_consulta_str:
+        resultado_atual = st.session_state.get("horarios_consultados")
+
+    if resultado_atual is not None:
+        if resultado_atual.get("erro"):
+            st.error(f"O robô encontrou um erro ao consultar: {resultado_atual['erro']}")
+        elif not resultado_atual.get("horarios"):
+            st.warning("Nenhum horário livre encontrado nesse dia.")
+        else:
+            st.success(f"{len(resultado_atual['horarios'])} horário(s) livre(s) encontrado(s)!")
+
+    st.markdown("**2. Preencha e agende**")
     with st.form("nova_pontual", clear_on_submit=True):
         quadra_p = st.text_input(
             "Nome da quadra", value="Quadra de Tênis", key="quadra_pontual"
         )
-        data_desejada = st.date_input(
-            "Data em que você quer jogar", value=datetime.now().date() + timedelta(days=7)
-        )
-        tipo_horario_p = st.radio(
-            "Horário", ["Primeiro horário disponível", "Horário fixo"], horizontal=True, key="tipo_pontual"
-        )
-        horario_fixo_p = None
-        if tipo_horario_p == "Horário fixo":
-            horario_fixo_p = st.text_input(
-                "Horário exato (formato igual ao TownSq)", placeholder="ex: 10:00 - 11:00", key="horario_pontual"
+        st.caption(f"Data selecionada: {data_consulta_str}")
+
+        opcoes_horario = ["Primeiro horário disponível"]
+        if resultado_atual and resultado_atual.get("horarios"):
+            opcoes_horario += resultado_atual["horarios"]
+        opcoes_horario.append("Outro (digitar manualmente)")
+
+        horario_escolhido = st.selectbox("Horário", opcoes_horario, key="select_horario_pontual")
+        horario_manual = None
+        if horario_escolhido == "Outro (digitar manualmente)":
+            horario_manual = st.text_input(
+                "Horário exato (formato igual ao TownSq)", placeholder="ex: 10:00 - 11:00"
             )
         dias_antecedencia_p = st.number_input(
             "Reserva abre quantos dias antes?", min_value=1, max_value=60, value=7, key="antecedencia_pontual"
         )
 
         if st.form_submit_button("Agendar reserva pontual", use_container_width=True):
-            horario_final_p = (
-                "primeiro_disponivel" if tipo_horario_p == "Primeiro horário disponível" else horario_fixo_p
-            )
-            if tipo_horario_p == "Horário fixo" and not horario_fixo_p:
-                st.error("Informe o horário fixo desejado.")
+            if horario_escolhido == "Primeiro horário disponível":
+                horario_final_p = "primeiro_disponivel"
+            elif horario_escolhido == "Outro (digitar manualmente)":
+                horario_final_p = horario_manual
+            else:
+                horario_final_p = horario_escolhido
+
+            if not horario_final_p:
+                st.error("Informe o horário desejado.")
             else:
                 dados["reservas"].append({
                     "quadra": quadra_p,
-                    "data_desejada": data_desejada.strftime("%Y-%m-%d"),
+                    "data_desejada": data_consulta_str,
                     "horario_desejado": horario_final_p,
                     "dias_antecedencia_abertura": int(dias_antecedencia_p),
                     "status": "agendado",

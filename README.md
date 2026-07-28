@@ -61,11 +61,15 @@ exato no formato que o TownSq usa, ex: `"10:00 - 11:00"`.
    GITHUB_TOKEN = "seu_token_aqui"
    GITHUB_REPO = "SEU_USUARIO/reservaquadra"
    ```
-   O token precisa só da permissão **Contents: Read and write** neste
-   repositório (fine-grained token).
+   O token precisa de duas permissões neste repositório (fine-grained token):
+   - **Contents: Read and write** — para ler/gravar o `reservations.json`
+   - **Actions: Read and write** — para o botão "Consultar horários" poder
+     disparar o workflow que checa a disponibilidade real no TownSq
 4. **Deploy**. Você terá uma URL tipo `https://seu-app.streamlit.app`,
    acessível do navegador do celular, com abas para regra recorrente e
-   reserva pontual.
+   reserva pontual — nessa última, dá pra consultar os horários realmente
+   livres de um dia (o painel dispara um robô que loga no TownSq e traz a
+   lista, leva de 1 a 2 minutos) antes de escolher qual agendar.
 
 ## Configurando os Secrets do robô (GitHub Actions)
 
