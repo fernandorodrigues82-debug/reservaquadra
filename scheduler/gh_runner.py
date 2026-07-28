@@ -7,6 +7,8 @@ no workflow). O script então:
   2. Faz login no TownSq com antecedência (para não perder tempo na hora H)
   3. Fica em espera ativa até 00:00:00 do horário de Brasília
   4. No instante exato, dispara as tentativas de reserva
+  5. Marca reservas pontuais bem-sucedidas como "reservado" no JSON, para
+     não tentar de novo nas próximas execuções
 
 Por que esperar dentro do script em vez de confiar no cron?
 Porque o cron do GitHub Actions costuma atrasar 10-30 min. Então acordamos
@@ -30,8 +32,6 @@ BRASILIA = timezone(timedelta(hours=-3))
 MAX_TENTATIVAS = 40
 INTERVALO_ENTRE_TENTATIVAS_SEGUNDOS = 2
 
-# Margem de segurança: se faltar mais que isso pra meia-noite, esperamos.
-# Se já passou da meia-noite (cron atrasou), dispara imediatamente.
 RESERVATIONS_FILE = Path(__file__).parent.parent / "reservations.json"
 
 logging.basicConfig(
@@ -47,13 +47,20 @@ DIAS_SEMANA_PT = {
 }
 
 
-def carregar_reservas_pendentes():
+def carregar_dados():
     if not RESERVATIONS_FILE.exists():
-        logger.warning(f"Arquivo {RESERVATIONS_FILE} não encontrado. Nada a fazer.")
-        return []
+        logger.warning(f"Arquivo {RESERVATIONS_FILE} não encontrado.")
+        return {"reservas": [], "regras_recorrentes": []}
     with open(RESERVATIONS_FILE, encoding="utf-8") as f:
-        dados = json.load(f)
+        return json.load(f)
 
+
+def salvar_dados(dados):
+    with open(RESERVATIONS_FILE, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=2)
+
+
+def calcular_abertura_date():
     # O cron dispara às 23:40 do dia ANTERIOR à meia-noite que importa.
     # Ex: dispara segunda 23:40, espera, e a "abertura" que acontece de fato
     # é à meia-noite de terça. Por isso usamos hoje+1 (amanhã) como a data
@@ -62,20 +69,35 @@ def carregar_reservas_pendentes():
     # da meia-noite, "hoje" já É o dia de abertura (não precisa +1).
     agora = datetime.now(BRASILIA)
     hoje = agora.date()
-    abertura_date = hoje if agora.hour == 0 else hoje + timedelta(days=1)
+    return hoje if agora.hour == 0 else hoje + timedelta(days=1)
+
+
+def montar_pendentes(dados, abertura_date):
+    """
+    Retorna lista de reservas a tentar hoje. Cada item inclui 'origem' para
+    sabermos, depois, se/como atualizar o status no JSON:
+      ("pontual", índice na lista dados["reservas"])
+      ("recorrente", None)  — regras recorrentes nunca "terminam", então
+                              não marcamos como concluídas.
+    """
     pendentes = []
 
-    # 1) Reservas pontuais (data fixa)
-    for r in dados.get("reservas", []):
+    # 1) Reservas pontuais — dispara se a janela já abriu (hoje ou antes) e
+    #    ainda não foi marcada como concluída. Isso cobre tanto o caso normal
+    #    (abre exatamente hoje) quanto casos de recuperação (cron falhou
+    #    ontem, ou a instrução foi cadastrada depois que a janela já tinha
+    #    aberto).
+    for i, r in enumerate(dados.get("reservas", [])):
         if r.get("status") != "agendado":
             continue
         data_desejada = datetime.strptime(r["data_desejada"], "%Y-%m-%d").date()
         momento_abertura = data_desejada - timedelta(days=r["dias_antecedencia_abertura"])
-        if momento_abertura == abertura_date:
+        if momento_abertura <= abertura_date:
             pendentes.append({
                 "quadra": r["quadra"],
                 "data_desejada": r["data_desejada"],
                 "horario_desejado": r["horario_desejado"],
+                "origem": ("pontual", i),
             })
 
     # 2) Regras recorrentes (toda semana no mesmo dia da semana)
@@ -92,6 +114,7 @@ def carregar_reservas_pendentes():
                 "quadra": regra["quadra"],
                 "data_desejada": data_alvo.strftime("%Y-%m-%d"),
                 "horario_desejado": regra["horario"],
+                "origem": ("recorrente", None),
             })
 
     return pendentes
@@ -100,22 +123,18 @@ def carregar_reservas_pendentes():
 def esperar_ate_meia_noite():
     """Espera (com precisão) até 00:00:00 de Brasília. Se já passou, retorna já."""
     agora = datetime.now(BRASILIA)
-    # A próxima meia-noite após 'agora'
     proxima_meia_noite = (agora + timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
-    # Se estamos rodando ANTES da meia-noite (ex: 23:45), a meia-noite alvo é hoje+0:00 do dia seguinte
-    # Se o cron atrasou e já passou da meia-noite, não esperamos.
     if agora.hour == 0:
         logger.info("Já passou da meia-noite (cron pode ter atrasado). Disparando imediatamente.")
         return
 
     segundos_ate = (proxima_meia_noite - agora).total_seconds()
-    if segundos_ate > 900:  # mais de 15 min: algo errado no agendamento, mas esperamos mesmo assim
+    if segundos_ate > 900:
         logger.warning(f"Faltam {segundos_ate:.0f}s até meia-noite (muito). Esperando mesmo assim.")
 
     logger.info(f"Aguardando {segundos_ate:.1f}s até a meia-noite de Brasília ({proxima_meia_noite})...")
-    # Espera grosseira até faltar 2s, depois espera fina
     while True:
         restante = (proxima_meia_noite - datetime.now(BRASILIA)).total_seconds()
         if restante <= 0:
@@ -125,24 +144,25 @@ def esperar_ate_meia_noite():
 
 
 def executar():
-    pendentes = carregar_reservas_pendentes()
+    dados = carregar_dados()
+    abertura_date = calcular_abertura_date()
+    pendentes = montar_pendentes(dados, abertura_date)
+
     if not pendentes:
         logger.info("Nenhuma reserva pendente para hoje. Encerrando.")
         return
 
     logger.info(f"{len(pendentes)} reserva(s) pendente(s) para hoje.")
+    houve_mudanca = False
 
-    # Faz login ANTES da meia-noite para não perder tempo
     with criar_cliente_do_env() as client:
         client.login()
 
         for reserva in pendentes:
             client.navegar_para_reserva_quadra(reserva["quadra"])
 
-        # Espera o instante exato
         esperar_ate_meia_noite()
 
-        # Dispara para cada reserva
         for reserva in pendentes:
             data_desejada = datetime.strptime(reserva["data_desejada"], "%Y-%m-%d").date()
             client.navegar_para_reserva_quadra(reserva["quadra"])
@@ -157,9 +177,22 @@ def executar():
                 logger.info(f"Tentativa {tentativa}/{MAX_TENTATIVAS} sem sucesso...")
                 time.sleep(INTERVALO_ENTRE_TENTATIVAS_SEGUNDOS)
                 client.recarregar_pagina_reserva()
+
             if not sucesso:
                 logger.error(f"❌ Falhou após {MAX_TENTATIVAS} tentativas: "
                              f"{reserva['quadra']} {reserva['data_desejada']} {reserva['horario_desejado']}")
+                continue
+
+            # Marca reservas pontuais bem-sucedidas como concluídas, para
+            # não tentar de novo na próxima execução.
+            tipo, indice = reserva["origem"]
+            if tipo == "pontual":
+                dados["reservas"][indice]["status"] = "reservado"
+                houve_mudanca = True
+
+    if houve_mudanca:
+        salvar_dados(dados)
+        logger.info("reservations.json atualizado com o resultado das reservas pontuais.")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,11 @@ st.set_page_config(page_title="Reserva Automática de Quadra", page_icon="🎾",
 
 GITHUB_API = "https://api.github.com"
 DIAS_SEMANA = ["segunda", "terça", "quarta", "quinta", "sexta", "sabado", "domingo"]
+STATUS_LABELS = {
+    "agendado": "✅ agendado (aguardando o robô)",
+    "reservado": "🎾 reservado (concluído com sucesso!)",
+    "cancelado": "❌ cancelado",
+}
 
 
 def get_config():
@@ -230,7 +235,7 @@ with tab_pontual:
                 st.markdown(f"**{r['quadra']}** — {r['data_desejada']} às **{r['horario_desejado']}**")
                 st.caption(
                     f"Abre {r['dias_antecedencia_abertura']} dias antes · "
-                    f"Status: {'✅ agendado' if r['status'] == 'agendado' else '❌ cancelado'}"
+                    f"Status: {STATUS_LABELS.get(r['status'], r['status'])}"
                 )
             with col2:
                 if r["status"] == "agendado":
