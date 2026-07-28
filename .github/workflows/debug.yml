@@ -23,6 +23,7 @@ on:
           - calendario
           - horarios
           - confirmar
+          - reservar_real
       dia_teste:
         description: 'Dia do mês a testar (apenas para step=horarios/confirmar)'
         required: false
