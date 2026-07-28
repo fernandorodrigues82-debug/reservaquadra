@@ -69,7 +69,12 @@ exato no formato que o TownSq usa, ex: `"10:00 - 11:00"`.
    acessível do navegador do celular, com abas para regra recorrente e
    reserva pontual — nessa última, dá pra consultar os horários realmente
    livres de um dia (o painel dispara um robô que loga no TownSq e traz a
-   lista, leva de 1 a 2 minutos) antes de escolher qual agendar.
+   lista, leva de 1 a 2 minutos) e depois escolher entre:
+   - **📅 Agendar** — salva a instrução para o robô tentar automaticamente
+     na próxima meia-noite em que a janela abrir
+   - **⚡ Reservar agora** — dispara a tentativa imediatamente, útil quando
+     a janela já está aberta (ex: reservar um dia mais próximo, dentro do
+     prazo normal de antecedência)
 
 ## Configurando os Secrets do robô (GitHub Actions)
 

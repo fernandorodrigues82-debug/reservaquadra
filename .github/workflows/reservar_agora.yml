@@ -1,0 +1,62 @@
+name: Reservar Agora
+
+# Disparado pelo painel Streamlit quando o usuário quer reservar um horário
+# imediatamente (janela já aberta), sem esperar a próxima meia-noite.
+
+on:
+  workflow_dispatch:
+    inputs:
+      data:
+        description: 'Data a reservar (formato AAAA-MM-DD)'
+        required: true
+        type: string
+      horario:
+        description: 'Horário exato (ex: "07:00 - 08:00") ou "primeiro_disponivel"'
+        required: true
+        type: string
+      chave:
+        description: 'Identificador único para o arquivo de resultado'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  reservar_agora:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Baixar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar dependências
+        run: |
+          pip install -r requirements-bot.txt
+          playwright install --with-deps chromium
+
+      - name: Reservar agora
+        env:
+          TOWNSQ_EMAIL: ${{ secrets.TOWNSQ_EMAIL }}
+          TOWNSQ_SENHA: ${{ secrets.TOWNSQ_SENHA }}
+          TOWNSQ_LOGIN_URL: ${{ secrets.TOWNSQ_LOGIN_URL }}
+          HEADLESS: 'True'
+          DATA: ${{ github.event.inputs.data }}
+          HORARIO: ${{ github.event.inputs.horario }}
+          CHAVE: ${{ github.event.inputs.chave }}
+        run: python scraper/reservar_agora.py
+
+      - name: Salvar resultado no repositório
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add resultados_reservas/
+          git commit -m "Resultado de reserva imediata: ${{ github.event.inputs.chave }}" || echo "nada para commitar"
+          git push

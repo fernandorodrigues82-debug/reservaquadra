@@ -16,6 +16,7 @@ Configuração necessária (Streamlit secrets — veja README.md):
 import base64
 import json
 import time
+import uuid
 from datetime import datetime, timedelta
 
 import requests
@@ -93,6 +94,44 @@ def salvar_reservations_json(token, repo, dados, sha, mensagem):
         st.error(f"Erro ao salvar no GitHub (HTTP {resp.status_code}): {detalhe}")
         st.stop()
     st.cache_data.clear()
+
+
+def disparar_reservar_agora(token, repo, data_str, horario, chave):
+    """Dispara o workflow 'Reservar Agora' via GitHub API."""
+    resp = requests.post(
+        f"{GITHUB_API}/repos/{repo}/actions/workflows/reservar_agora.yml/dispatches",
+        headers=github_headers(token),
+        json={"ref": "main", "inputs": {"data": data_str, "horario": horario, "chave": chave}},
+        timeout=15,
+    )
+    if not resp.ok:
+        detalhe = ""
+        try:
+            detalhe = resp.json().get("message", "")
+        except Exception:
+            detalhe = resp.text[:300]
+        raise RuntimeError(
+            f"HTTP {resp.status_code}: {detalhe}. "
+            "Verifique se o token tem permissão 'Actions: Read and write'."
+        )
+
+
+def esperar_resultado_reserva_agora(token, repo, chave, timeout_segundos=180, intervalo=5):
+    """Espera o arquivo resultados_reservas/{chave}.json aparecer no repo."""
+    caminho = f"resultados_reservas/{chave}.json"
+    inicio = time.time()
+    time.sleep(10)
+    while time.time() - inicio < timeout_segundos:
+        resp = requests.get(
+            f"{GITHUB_API}/repos/{repo}/contents/{caminho}",
+            headers=github_headers(token),
+            timeout=15,
+        )
+        if resp.status_code == 200:
+            conteudo = base64.b64decode(resp.json()["content"]).decode("utf-8")
+            return json.loads(conteudo)
+        time.sleep(intervalo)
+    raise TimeoutError(f"Arquivo {caminho} não apareceu a tempo.")
 
 
 def disparar_consulta_horarios(token, repo, data_str):
@@ -318,7 +357,17 @@ with tab_pontual:
             "Reserva abre quantos dias antes?", min_value=1, max_value=60, value=7, key="antecedencia_pontual"
         )
 
-        if st.form_submit_button("Agendar reserva pontual", use_container_width=True):
+        col_agendar, col_agora = st.columns(2)
+        with col_agendar:
+            agendar_clicado = st.form_submit_button(
+                "📅 Agendar (roda hoje à noite)", use_container_width=True
+            )
+        with col_agora:
+            reservar_agora_clicado = st.form_submit_button(
+                "⚡ Reservar agora", use_container_width=True
+            )
+
+        if agendar_clicado or reservar_agora_clicado:
             if horario_escolhido == "Primeiro horário disponível":
                 horario_final_p = "primeiro_disponivel"
             elif horario_escolhido == "Outro (digitar manualmente)":
@@ -326,6 +375,7 @@ with tab_pontual:
             else:
                 horario_final_p = horario_escolhido
 
+        if agendar_clicado:
             if not horario_final_p:
                 st.error("Informe o horário desejado.")
             else:
@@ -337,7 +387,48 @@ with tab_pontual:
                     "status": "agendado",
                 })
                 salvar_reservations_json(token, repo, dados, sha, "Adiciona nova reserva pontual")
-                st.success("Reserva pontual agendada!")
+                st.success(
+                    "Reserva agendada! O robô vai tentar automaticamente na próxima "
+                    "meia-noite em que a janela abrir."
+                )
+
+    if reservar_agora_clicado:
+        if not horario_final_p:
+            st.error("Informe o horário desejado.")
+        else:
+            chave = uuid.uuid4().hex[:12]
+            with st.spinner(
+                "Tentando reservar agora mesmo (login + navegação real no TownSq)... "
+                "isso leva de 1 a 2 minutos, por favor aguarde."
+            ):
+                try:
+                    disparar_reservar_agora(token, repo, data_consulta_str, horario_final_p, chave)
+                    resultado_agora = esperar_resultado_reserva_agora(token, repo, chave)
+                except TimeoutError:
+                    st.error(
+                        "A tentativa demorou demais e não terminou a tempo. "
+                        "Confira a aba Actions do GitHub para ver o resultado."
+                    )
+                    resultado_agora = None
+                except Exception as e:
+                    st.error(f"Erro ao tentar reservar agora: {e}")
+                    resultado_agora = None
+
+            if resultado_agora:
+                if resultado_agora.get("erro"):
+                    st.error(f"O robô encontrou um erro: {resultado_agora['erro']}")
+                elif resultado_agora.get("sucesso"):
+                    st.success(
+                        f"🎾 Reserva confirmada para {resultado_agora['data']} "
+                        f"às {resultado_agora['horario_desejado']}!"
+                    )
+                    st.balloons()
+                else:
+                    st.warning(
+                        f"Não foi possível reservar (tentou "
+                        f"{resultado_agora.get('tentativas', '?')} vezes) — "
+                        "provavelmente o horário já foi tomado por outra pessoa."
+                    )
                 st.rerun()
 
 st.divider()
