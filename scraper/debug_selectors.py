@@ -331,6 +331,28 @@ def main():
                 return
             page.wait_for_timeout(1500)
             print(f"Dia {dia_teste} clicado. URL agora: {page.url}")
+            descrever_pagina(page, f"TELA DO DIA {dia_teste} (ANTES de clicar no horário)",
+                              salvar_screenshot="screenshot_dia_antes_horario.png")
+
+            print("\n--- ÁRVORE DE ACESSIBILIDADE (estrutura de painéis/modais) ---")
+            try:
+                snapshot = page.accessibility.snapshot(interesting_only=True)
+
+                def imprimir_no(no, profundidade=0):
+                    if no is None:
+                        return
+                    role = no.get("role", "")
+                    name = (no.get("name", "") or "")[:60]
+                    if role in ("button", "dialog", "heading", "radio", "listitem",
+                                "tab", "tabpanel", "group", "region"):
+                        print(f"{'  ' * profundidade}[{role}] {name!r}")
+                    for filho in no.get("children", []) or []:
+                        imprimir_no(filho, profundidade + 1)
+
+                imprimir_no(snapshot)
+            except Exception as e:
+                print(f"Erro ao gerar snapshot de acessibilidade: {e}")
+            print("--- FIM DA ÁRVORE ---\n")
 
             horario_teste = os.getenv("HORARIO_TESTE", "12:00 - 13:00")
             print(f"\n--- TENTANDO CLICAR NO HORÁRIO '{horario_teste}' ---")
