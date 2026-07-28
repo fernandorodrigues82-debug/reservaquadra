@@ -27,13 +27,6 @@
     {
       "quadra": "Quadra de Tênis",
       "data_desejada": "2026-08-03",
-      "horario_desejado": "primeiro_disponivel",
-      "dias_antecedencia_abertura": 7,
-      "status": "cancelado"
-    },
-    {
-      "quadra": "Quadra de Tênis",
-      "data_desejada": "2026-08-03",
       "horario_desejado": "07:00 - 08:00",
       "dias_antecedencia_abertura": 7,
       "status": "agendado"
