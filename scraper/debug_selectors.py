@@ -373,6 +373,35 @@ def main():
                         print(f"  [{i}] texto={texto!r} visivel={visivel}")
                     except Exception as e:
                         print(f"  [{i}] erro: {e}")
+
+                # Hipótese: falta aceitar os "TERMOS DE USO" (toggle) antes
+                # do botão "Reservar" aparecer/habilitar.
+                print("\n--- TENTANDO ATIVAR O TOGGLE 'ACEITO OS TERMOS DE USO' ---")
+                try:
+                    toggle = page.get_by_text("ACEITO OS TERMOS DE USO", exact=False).first
+                    toggle.click(timeout=5000)
+                    print("Clicou no texto do toggle de termos.")
+                except Exception as e:
+                    print(f"Falha ao clicar no texto do toggle: {e}")
+                    # Fallback: tenta um input/role=switch genérico próximo
+                    try:
+                        page.locator("input[type='checkbox']").first.click(timeout=3000)
+                        print("Clicou em input[type=checkbox] como alternativa.")
+                    except Exception as e2:
+                        print(f"Fallback também falhou: {e2}")
+
+                page.wait_for_timeout(1000)
+                descrever_pagina(page, "TELA APÓS TENTAR ACEITAR OS TERMOS DE USO",
+                                  salvar_screenshot="screenshot_apos_termos.png")
+
+                print("\n--- VERIFICANDO BOTÕES id='confirm-button' NOVAMENTE (após termos) ---")
+                for i, el in enumerate(page.locator("#confirm-button").all()):
+                    try:
+                        texto = el.inner_text().strip()
+                        visivel = el.is_visible()
+                        print(f"  [{i}] texto={texto!r} visivel={visivel}")
+                    except Exception as e:
+                        print(f"  [{i}] erro: {e}")
             except Exception as e:
                 print(f"Falha ao clicar no horário: {e}")
 
