@@ -406,7 +406,32 @@ def main():
                     except Exception as e:
                         print(f"Erro ao inspecionar contexto: {e}")
                 else:
-                    print("Nenhum elemento visível com 'ACEITO' encontrado.")
+                    # Fallback: usa o link "TERMOS DE USO" visível (tag A)
+                    # como âncora para achar o toggle vizinho, já que "ACEITO
+                    # OS" e o link são elementos de texto separados.
+                    print("\n--- FALLBACK: usando o link 'TERMOS DE USO' visível como âncora ---")
+                    link_termos = None
+                    for el in termos_matches:
+                        try:
+                            if el.is_visible() and el.evaluate("e => e.tagName") == "A":
+                                link_termos = el
+                                break
+                        except Exception:
+                            pass
+                    if link_termos is not None:
+                        for nivel in range(1, 5):
+                            try:
+                                js = (
+                                    "(e) => { let el = e; for (let i = 0; i < NIVEL; i++) "
+                                    "{ if (!el.parentElement) return null; el = el.parentElement; } "
+                                    "return el.outerHTML.slice(0, 600); }"
+                                ).replace("NIVEL", str(nivel))
+                                html = link_termos.evaluate(js)
+                                print(f"  Ancestral nível {nivel}: {html!r}")
+                            except Exception as e:
+                                print(f"  Ancestral nível {nivel}: erro {e}")
+                    else:
+                        print("Link 'TERMOS DE USO' visível não encontrado.")
                 print("--- FIM DA INVESTIGAÇÃO ---\n")
             except Exception as e:
                 print(f"Falha ao clicar no horário: {e}")
