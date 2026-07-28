@@ -376,32 +376,38 @@ def main():
 
                 # Hipótese: falta aceitar os "TERMOS DE USO" (toggle) antes
                 # do botão "Reservar" aparecer/habilitar.
-                print("\n--- TENTANDO ATIVAR O TOGGLE 'ACEITO OS TERMOS DE USO' ---")
-                try:
-                    toggle = page.get_by_text("ACEITO OS TERMOS DE USO", exact=False).first
-                    toggle.click(timeout=5000)
-                    print("Clicou no texto do toggle de termos.")
-                except Exception as e:
-                    print(f"Falha ao clicar no texto do toggle: {e}")
-                    # Fallback: tenta um input/role=switch genérico próximo
+                # Investigação: antes de clicar, mapeia TODOS os elementos
+                # que contêm "TERMOS" (pode haver duplicados/ocultos).
+                print("\n--- INVESTIGANDO ELEMENTOS COM TEXTO 'TERMOS' ---")
+                termos_matches = page.get_by_text("TERMOS", exact=False).all()
+                print(f"Total de elementos com 'TERMOS': {len(termos_matches)}")
+                toggle_alvo = None
+                for i, el in enumerate(termos_matches):
                     try:
-                        page.locator("input[type='checkbox']").first.click(timeout=3000)
-                        print("Clicou em input[type=checkbox] como alternativa.")
-                    except Exception as e2:
-                        print(f"Fallback também falhou: {e2}")
-
-                page.wait_for_timeout(1000)
-                descrever_pagina(page, "TELA APÓS TENTAR ACEITAR OS TERMOS DE USO",
-                                  salvar_screenshot="screenshot_apos_termos.png")
-
-                print("\n--- VERIFICANDO BOTÕES id='confirm-button' NOVAMENTE (após termos) ---")
-                for i, el in enumerate(page.locator("#confirm-button").all()):
-                    try:
-                        texto = el.inner_text().strip()
+                        texto = el.inner_text().strip().replace("\n", " ")[:50]
                         visivel = el.is_visible()
-                        print(f"  [{i}] texto={texto!r} visivel={visivel}")
+                        tag = el.evaluate("e => e.tagName")
+                        print(f"  [{i}] texto={texto!r} tag={tag!r} visivel={visivel}")
+                        if visivel and "ACEITO" in texto.upper() and toggle_alvo is None:
+                            toggle_alvo = el
                     except Exception as e:
                         print(f"  [{i}] erro: {e}")
+
+                if toggle_alvo is not None:
+                    # Procura um input/checkbox IRMÃO ou ANCESTRAL próximo
+                    # do texto "ACEITO OS TERMOS DE USO" visível, em vez de
+                    # clicar no texto (que pode ter fechado o modal antes).
+                    print("\n--- PROCURANDO O ELEMENTO CLICÁVEL REAL DO TOGGLE (perto do texto visível) ---")
+                    try:
+                        html_contexto = toggle_alvo.evaluate(
+                            "e => e.parentElement ? e.parentElement.outerHTML.slice(0, 500) : null"
+                        )
+                        print(f"HTML ao redor do texto visível: {html_contexto!r}")
+                    except Exception as e:
+                        print(f"Erro ao inspecionar contexto: {e}")
+                else:
+                    print("Nenhum elemento visível com 'ACEITO' encontrado.")
+                print("--- FIM DA INVESTIGAÇÃO ---\n")
             except Exception as e:
                 print(f"Falha ao clicar no horário: {e}")
 
