@@ -29,7 +29,7 @@
       "data_desejada": "2026-08-03",
       "horario_desejado": "primeiro_disponivel",
       "dias_antecedencia_abertura": 7,
-      "status": "agendado"
+      "status": "cancelado"
     }
   ]
 }
