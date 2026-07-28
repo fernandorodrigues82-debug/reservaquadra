@@ -433,6 +433,36 @@ def main():
                     else:
                         print("Link 'TERMOS DE USO' visível não encontrado.")
                 print("--- FIM DA INVESTIGAÇÃO ---\n")
+
+                # Estrutura real descoberta: <div class="tsq-switch"><sc-switch>
+                # <span class="switch">...</span></sc-switch></div>. Clica no
+                # span visível (pode haver cópias ocultas de outros modais).
+                print("\n--- TENTANDO CLICAR NO TOGGLE REAL (.tsq-switch .switch) ---")
+                try:
+                    switches = page.locator(".tsq-switch .switch").all()
+                    print(f"Total de toggles encontrados: {len(switches)}")
+                    clicou_toggle = False
+                    for i, sw in enumerate(switches):
+                        visivel = sw.is_visible()
+                        print(f"  [{i}] visivel={visivel}")
+                        if visivel and not clicou_toggle:
+                            sw.click(timeout=5000)
+                            clicou_toggle = True
+                            print(f"  -> Clicou no toggle [{i}]")
+                    page.wait_for_timeout(1000)
+                    descrever_pagina(page, "TELA APÓS CLICAR NO TOGGLE REAL",
+                                      salvar_screenshot="screenshot_apos_toggle_real.png")
+
+                    print("\n--- VERIFICANDO BOTÕES id='confirm-button' (após toggle real) ---")
+                    for i, el in enumerate(page.locator("#confirm-button").all()):
+                        try:
+                            texto = el.inner_text().strip()
+                            visivel = el.is_visible()
+                            print(f"  [{i}] texto={texto!r} visivel={visivel}")
+                        except Exception as e:
+                            print(f"  [{i}] erro: {e}")
+                except Exception as e:
+                    print(f"Falha ao clicar no toggle real: {e}")
             except Exception as e:
                 print(f"Falha ao clicar no horário: {e}")
 
