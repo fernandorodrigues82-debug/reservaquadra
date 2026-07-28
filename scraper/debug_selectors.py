@@ -100,6 +100,42 @@ def main():
     senha = os.environ["TOWNSQ_SENHA"]
     login_url = os.getenv("TOWNSQ_LOGIN_URL", "https://app.townsq.com.br/login")
 
+    if STEP == "reservar_real":
+        # TESTE REAL: usa exatamente a mesma função que roda em produção
+        # (TownSqClient.tentar_reservar), incluindo o clique final em
+        # "Reservar". Isso CRIA uma reserva de verdade — feito fora do
+        # bloco `with sync_playwright()` de debug abaixo, porque o
+        # Playwright não permite duas instâncias sync aninhadas no mesmo
+        # loop (senão dá erro "inside the asyncio loop").
+        sys.path.append(str(Path(__file__).parent))
+        from townsq_client import TownSqClient
+
+        dia_teste = int(os.getenv("DIA_TESTE", "30"))
+        horario_teste = os.getenv("HORARIO_TESTE", "primeiro_disponivel")
+        hoje = datetime.now()
+        data_teste = hoje.replace(day=dia_teste)
+        if data_teste.date() < hoje.date():
+            if hoje.month == 12:
+                data_teste = data_teste.replace(year=hoje.year + 1, month=1)
+            else:
+                data_teste = data_teste.replace(month=hoje.month + 1)
+
+        print(f"\n--- TESTE REAL: tentando reservar {data_teste.date()} "
+              f"({horario_teste}) usando o código de produção ---")
+
+        client = TownSqClient(email=email, senha=senha, login_url=login_url, headless=True)
+        with client:
+            client.login()
+            client.navegar_para_reserva_quadra("Quadra de Tênis")
+            sucesso = client.tentar_reservar(data_teste.date(), horario_teste)
+            print(f"\nResultado: sucesso={sucesso}")
+            try:
+                client._page.screenshot(path="screenshot_resultado_final.png", full_page=True)
+                print("Screenshot final salvo em screenshot_resultado_final.png")
+            except Exception as e:
+                print(f"Erro ao salvar screenshot final: {e}")
+        return
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         # Forçar português do Brasil, igual à experiência real do usuário
@@ -465,42 +501,6 @@ def main():
                     print(f"Falha ao clicar no toggle real: {e}")
             except Exception as e:
                 print(f"Falha ao clicar no horário: {e}")
-
-        if STEP == "reservar_real":
-            # TESTE REAL: usa exatamente a mesma função que roda em produção
-            # (TownSqClient.tentar_reservar), incluindo o clique final em
-            # "Reservar". Isso CRIA uma reserva de verdade — o usuário
-            # pediu para testar de propósito e vai cancelar depois.
-            sys.path.append(str(Path(__file__).parent))
-            from townsq_client import TownSqClient
-
-            dia_teste = int(os.getenv("DIA_TESTE", "30"))
-            horario_teste = os.getenv("HORARIO_TESTE", "primeiro_disponivel")
-            hoje = datetime.now()
-            data_teste = hoje.replace(day=dia_teste)
-            if data_teste.date() < hoje.date():
-                if hoje.month == 12:
-                    data_teste = data_teste.replace(year=hoje.year + 1, month=1)
-                else:
-                    data_teste = data_teste.replace(month=hoje.month + 1)
-
-            print(f"\n--- TESTE REAL: tentando reservar {data_teste.date()} "
-                  f"({horario_teste}) usando o código de produção ---")
-
-            browser.close()  # fecha o navegador de debug; o client abre o dele próprio
-
-            client = TownSqClient(email=email, senha=senha, login_url=login_url, headless=True)
-            with client:
-                client.login()
-                client.navegar_para_reserva_quadra("Quadra de Tênis")
-                sucesso = client.tentar_reservar(data_teste.date(), horario_teste)
-                print(f"\nResultado: sucesso={sucesso}")
-                try:
-                    client._page.screenshot(path="screenshot_resultado_final.png", full_page=True)
-                    print("Screenshot final salvo em screenshot_resultado_final.png")
-                except Exception as e:
-                    print(f"Erro ao salvar screenshot final: {e}")
-            return
 
         browser.close()
 
