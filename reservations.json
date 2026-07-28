@@ -7,7 +7,15 @@
     "dias_antecedencia_abertura": "Quantos dias antes a reserva abre (no seu caso, 7)",
     "status": "'ativo' para manter rodando toda semana. 'pausado' para desativar sem apagar."
   },
-  "regras_recorrentes": [],
+  "regras_recorrentes": [
+    {
+      "quadra": "Quadra de Tênis",
+      "dia_semana": "terça",
+      "horario": "primeiro_disponivel",
+      "dias_antecedencia_abertura": 7,
+      "status": "ativo"
+    }
+  ],
   "_campos_reserva_pontual": {
     "quadra": "Nome exato da quadra como aparece no TownSq",
     "data_desejada": "Data em que você quer jogar, formato AAAA-MM-DD",
