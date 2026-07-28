@@ -65,11 +65,16 @@ def calcular_abertura_date():
     # Ex: dispara segunda 23:40, espera, e a "abertura" que acontece de fato
     # é à meia-noite de terça. Por isso usamos hoje+1 (amanhã) como a data
     # de abertura de verdade, não a data de hoje em que o cron disparou.
-    # Caso raro: se o GitHub atrasou tanto que o script só começou já depois
-    # da meia-noite, "hoje" já É o dia de abertura (não precisa +1).
+    #
+    # Só que o GitHub Actions pode atrasar o disparo por HORAS (já vimos
+    # atraso de quase 3h em dias de pico), não só minutos. Se isso empurrar
+    # a execução para depois da meia-noite, "hoje" (durante a execução) já
+    # É o dia de abertura — não precisa somar 1. Usamos um limiar amplo
+    # (meio-dia) em vez de checar só "hora == 0", para tolerar atrasos de
+    # várias horas com folga.
     agora = datetime.now(BRASILIA)
     hoje = agora.date()
-    return hoje if agora.hour == 0 else hoje + timedelta(days=1)
+    return hoje if agora.hour < 12 else hoje + timedelta(days=1)
 
 
 def montar_pendentes(dados, abertura_date):
@@ -126,8 +131,11 @@ def esperar_ate_meia_noite():
     proxima_meia_noite = (agora + timedelta(days=1)).replace(
         hour=0, minute=0, second=0, microsecond=0
     )
-    if agora.hour == 0:
-        logger.info("Já passou da meia-noite (cron pode ter atrasado). Disparando imediatamente.")
+    # Mesmo limiar amplo de calcular_abertura_date(): se já passamos da
+    # meia-noite (mesmo por várias horas de atraso), dispara na hora, em
+    # vez de esperar quase um dia inteiro pela PRÓXIMA meia-noite.
+    if agora.hour < 12:
+        logger.info("Já passou da meia-noite (cron atrasou). Disparando imediatamente.")
         return
 
     segundos_ate = (proxima_meia_noite - agora).total_seconds()
