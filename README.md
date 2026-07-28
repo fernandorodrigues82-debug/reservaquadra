@@ -1,169 +1,117 @@
 # 🎾 Reserva Automática de Quadra de Tênis (TownSq)
 
-## 📱 Fazendo tudo pelo celular (sem computador)
+Sistema que reserva automaticamente a Quadra de Tênis no TownSq assim que a
+janela de reserva abre (7 dias antes, à meia-noite), sem precisar de
+computador ligado nem de servidor pago.
 
-Se você vai fazer tudo pelo navegador do celular, siga esta seção. As demais
-seções abaixo são para quem tem acesso a um terminal/computador.
+## Como funciona
 
-### Passo 1 — Subir o projeto pro GitHub (sem git, só pelo navegador)
+1. **`reservations.json`** — arquivo de configuração com as regras de
+   reserva (ex: "toda terça-feira, primeiro horário livre"). Editável direto
+   pelo GitHub ou pelo painel (veja abaixo).
+2. **GitHub Actions** (`.github/workflows/reserva.yml`) — dispara sozinho
+   todo dia às 23:40 (Brasília), espera até a meia-noite exata, confere se
+   alguma regra "abre" naquele instante, e se sim, executa a reserva.
+3. **`scraper/townsq_client.py`** — a automação em si (Playwright): login,
+   navegação até a quadra, seleção do dia/horário, aceite dos termos, e
+   clique em "Reservar".
+4. **`app.py`** — painel Streamlit opcional para gerenciar as regras sem
+   precisar editar JSON na mão (lê/grava direto no GitHub).
 
-1. No navegador do celular, abra **github.com**, faça login e toque em
-   **"New repository"**. Nomeie como `tennis-booking-bot` e deixe **vazio**
-   (sem README/gitignore).
-2. Na página do repositório recém-criado, toque no link
-   **"uploading an existing file"**.
-3. Descompacte o `.zip` que recebi no seu celular (use o app **Arquivos**
-   no iPhone, ou qualquer app de arquivos/ZArchiver no Android).
-4. Vá selecionando os arquivos um a um pelo seletor de arquivos do celular.
-   Para os arquivos que ficam dentro de pastas (`scraper/townsq_client.py`,
-   `scraper/debug_selectors.py`, `scheduler/scheduler_service.py`), depois de
-   escolher o arquivo, edite o campo do nome antes de commitar e digite o
-   caminho completo, por exemplo: `scraper/townsq_client.py` — o GitHub cria
-   a pasta sozinho.
-5. Role até embaixo e toque em **"Commit changes"**.
+Tudo gratuito: repositório público no GitHub = minutos de Actions
+ilimitados, e o Streamlit Community Cloud hospeda o painel de graça.
 
-Pronto, o código já está no GitHub, tudo pelo celular.
+## Configurando as reservas
 
-### Passo 2 — Rodar o robô 24/7 sem precisar de computador ligado
+Edite `reservations.json` (pelo GitHub ou pelo painel Streamlit). Dois tipos
+de entrada:
 
-Use um serviço de hospedagem gratuito/barato que conecta direto no seu
-GitHub e roda tudo na nuvem, gerenciável 100% pelo navegador (ex:
-**Render.com** ou **Railway.app**):
-
-1. Crie conta no Render.com (ou Railway) e conecte sua conta do GitHub.
-2. Crie um novo **"Background Worker"** apontando pro repositório
-   `tennis-booking-bot`.
-3. Comando de build: `pip install -r requirements.txt && playwright install --with-deps chromium`
-4. Comando de start (para o robô que agenda/reserva): `python scheduler/scheduler_service.py`
-5. Nas variáveis de ambiente do serviço, cadastre as mesmas do `.env.example`
-   (`TOWNSQ_EMAIL`, `TOWNSQ_SENHA`, `TOWNSQ_LOGIN_URL`, `HEADLESS=True`) —
-   **nunca** coloque isso direto no código, sempre nas variáveis de ambiente
-   do painel do serviço.
-6. Para o **painel Streamlit**, crie um segundo serviço do tipo
-   **"Web Service"** no mesmo repositório, com start command
-   `streamlit run app.py --server.port $PORT --server.address 0.0.0.0`.
-
-Tudo isso é feito clicando no painel web do Render — sem terminal.
-
-### Passo 3 — Descobrir os seletores reais do TownSq (sem tela/desktop)
-
-Como o TownSq é um app que só monta a tela via JavaScript, não dá pra "ver"
-o HTML de fora. Em vez de precisar de um navegador com tela, use o script
-`scraper/debug_selectors.py`: ele roda sem interface e **imprime em texto**
-tudo que existe na tela (campos, botões, links) — daí é só copiar o log e
-me mandar aqui no chat.
-
-No Render/Railway, use a opção de rodar um **"one-off job"** (comando
-avulso) com:
-```
-STEP=login python scraper/debug_selectors.py
-```
-Copie a saída dos logs (visível no navegador) e me envie. Eu ajusto o código
-com base nisso, você sobe a atualização (repetindo o passo 1, ou via
-"Edit" direto no arquivo do GitHub pelo navegador), e rodamos o próximo
-`STEP` (`pos_login`, depois `reservas`) até cobrirmos o fluxo completo.
-
----
-
-
-Sistema com dois componentes:
-
-1. **Painel Streamlit** (`app.py`) — onde você cadastra: qual quadra, qual
-   data/horário deseja, e a regra de quando a reserva abre (ex: "abre 7 dias
-   antes, às 00:00").
-2. **Scheduler** (`scheduler/scheduler_service.py`) — processo que fica
-   rodando em segundo plano, e no instante exato em que a janela de reserva
-   abre, faz login no TownSq e tenta reservar repetidamente até conseguir
-   (útil porque outros moradores também vão estar tentando pegar o mesmo horário).
-
-## ⚠️ Antes de usar: ajuste os seletores do TownSq
-
-O TownSq não tem API pública, então a automação controla um navegador de
-verdade (Playwright) clicando como um usuário. Os seletores em
-`scraper/townsq_client.py` são **placeholders prováveis** e quase certamente
-vão precisar de ajuste. O jeito mais fácil de descobrir os seletores certos:
-
-```bash
-pip install playwright
-playwright install chromium
-playwright codegen https://app.townsq.com.br/login
+**Regra recorrente** (toda semana, mesmo dia):
+```json
+{
+  "quadra": "Quadra de Tênis",
+  "dia_semana": "terça",
+  "horario": "primeiro_disponivel",
+  "dias_antecedencia_abertura": 7,
+  "status": "ativo"
+}
 ```
 
-Isso abre um navegador. Faça manualmente o fluxo completo (login → área
-comum → quadra de tênis → escolher data/horário → confirmar). O Playwright
-gera o código Python correspondente aos seus cliques — copie os seletores
-gerados para dentro dos métodos marcados com `# TODO` em
-`scraper/townsq_client.py`.
-
-## Instalação
-
-```bash
-git clone <seu-repo>
-cd tennis-booking-bot
-python -m venv venv
-source venv/bin/activate       # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-playwright install chromium
-cp .env.example .env
-# edite o .env com seu email/senha do TownSq
+**Reserva pontual** (uma data específica):
+```json
+{
+  "quadra": "Quadra de Tênis",
+  "data_desejada": "2026-08-15",
+  "horario_desejado": "primeiro_disponivel",
+  "dias_antecedencia_abertura": 7,
+  "status": "agendado"
+}
 ```
 
-## Rodando localmente
+`horario` / `horario_desejado` aceita `"primeiro_disponivel"` (pega o
+horário de 1h mais cedo que não estiver em fila de espera) ou um horário
+exato no formato que o TownSq usa, ex: `"10:00 - 11:00"`.
 
-Em dois terminais separados:
+## Publicando o painel de gerenciamento (Streamlit)
 
-```bash
-# Terminal 1 — painel para cadastrar reservas
-streamlit run app.py
+1. Acesse **share.streamlit.io**, faça login com sua conta GitHub.
+2. **"New app"** → selecione o repositório, branch `main`, arquivo `app.py`.
+3. Em **Secrets** (Advanced settings ou Settings → Secrets depois de criado):
+   ```toml
+   GITHUB_TOKEN = "seu_token_aqui"
+   GITHUB_REPO = "SEU_USUARIO/reservaquadra"
+   ```
+   O token precisa só da permissão **Contents: Read and write** neste
+   repositório (fine-grained token).
+4. **Deploy**. Você terá uma URL tipo `https://seu-app.streamlit.app`,
+   acessível do navegador do celular, com abas para regra recorrente e
+   reserva pontual.
 
-# Terminal 2 — robô que executa as reservas no horário certo
-python scheduler/scheduler_service.py
-```
+## Configurando os Secrets do robô (GitHub Actions)
 
-## Rodando 24/7 (para não depender do seu computador ligado)
+Em **Settings → Secrets and variables → Actions** no repositório, crie:
 
-Como reservas podem abrir de madrugada, o ideal é rodar o `scheduler_service.py`
-em um servidor sempre ligado. Opções simples e baratas:
-- Uma VM pequena (ex: Oracle Cloud free tier, um Raspberry Pi em casa, um VPS barato)
-- Rodar com `systemd`, `pm2`, ou dentro de um container Docker com restart automático
-- Streamlit Community Cloud pode hospedar o **painel**, mas não é feito para
-  manter um processo de scheduler rodando 24/7 — para isso é melhor um servidor
-  próprio ou um serviço tipo Railway/Render (worker/background process).
+| Nome | Valor |
+|------|-------|
+| `TOWNSQ_EMAIL` | seu email do TownSq |
+| `TOWNSQ_SENHA` | sua senha do TownSq |
+| `TOWNSQ_LOGIN_URL` | `https://app.townsq.com.br/login` |
+
+Também é preciso habilitar **Settings → Actions → General → Workflow
+permissions → "Read and write permissions"** (necessário para alguns dos
+scripts de debug salvarem screenshots direto no repositório).
+
+## Testando manualmente
+
+Além do disparo automático diário, o workflow **"Reserva Automática de
+Quadra"** pode ser rodado manualmente a qualquer momento pela aba
+**Actions → Run workflow** — útil para testar sem esperar a meia-noite.
+
+Há também o workflow **"Descobrir Seletores (debug)"**, usado durante o
+desenvolvimento para investigar a estrutura de telas do TownSq caso o site
+mude no futuro e algum seletor pare de funcionar.
 
 ## Estrutura do projeto
 
 ```
-tennis-booking-bot/
-├── app.py                        # Painel Streamlit
-├── storage.py                    # Banco SQLite (reservas + logs)
-├── scraper/
-│   └── townsq_client.py          # Automação Playwright do TownSq
-├── scheduler/
-│   └── scheduler_service.py      # Agenda e dispara as tentativas de reserva
-├── data/                         # Banco de dados e logs (gerado em runtime)
+reservaquadra/
+├── app.py                          # Painel Streamlit (edita reservations.json via GitHub API)
+├── reservations.json                # Configuração das regras de reserva
 ├── requirements.txt
-├── .env.example
-└── .gitignore
+├── .github/workflows/
+│   ├── reserva.yml                  # Workflow de produção (roda todo dia às 23:40)
+│   └── debug.yml                    # Workflow de debug/investigação de seletores
+├── scraper/
+│   ├── townsq_client.py             # Automação Playwright (login, navegação, reserva)
+│   └── debug_selectors.py           # Script de investigação/diagnóstico da estrutura do site
+├── scheduler/
+│   └── gh_runner.py                 # Ponto de entrada rodado pelo GitHub Actions
+└── debug_screenshots/               # Screenshots salvos pelo workflow de debug
 ```
-
-## Publicando no GitHub
-
-```bash
-git init
-git add .
-git commit -m "Sistema de reserva automática de quadra de tênis"
-git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/tennis-booking-bot.git
-git push -u origin main
-```
-
-O `.gitignore` já garante que seu `.env` (com senha) e o banco de dados local
-**não** sejam enviados ao repositório.
 
 ## Aviso importante
 
-Automatizar login/reservas em sites de terceiros pode contrariar os Termos de
-Uso do TownSq (mesmo usando suas próprias credenciais, para uso pessoal).
-Vale checar os termos da sua conta/condomínio antes de deixar isso rodando
-em produção, e evitar frequência agressiva de tentativas que possa ser
-confundida com abuso do sistema.
+Automatizar login/reservas em sites de terceiros pode contrariar os Termos
+de Uso do TownSq (mesmo usando suas próprias credenciais, para uso pessoal).
+Vale checar os termos da sua conta/condomínio, e evitar frequência agressiva
+de tentativas que possa ser confundida com abuso do sistema.
