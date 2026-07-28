@@ -56,16 +56,36 @@ def carregar_reservations_json(_token, repo):
 
 
 def salvar_reservations_json(token, repo, dados, sha, mensagem):
+    # Rebusca o SHA mais recente antes de salvar, para evitar conflito de
+    # versão (409) caso o cache local esteja um pouco desatualizado.
+    try:
+        resp_atual = requests.get(
+            f"{GITHUB_API}/repos/{repo}/contents/reservations.json",
+            headers=github_headers(token),
+            timeout=15,
+        )
+        resp_atual.raise_for_status()
+        sha_atual = resp_atual.json()["sha"]
+    except Exception:
+        sha_atual = sha  # fallback: usa o que já tínhamos
+
     conteudo_b64 = base64.b64encode(
         json.dumps(dados, ensure_ascii=False, indent=2).encode("utf-8")
     ).decode("utf-8")
     resp = requests.put(
         f"{GITHUB_API}/repos/{repo}/contents/reservations.json",
         headers=github_headers(token),
-        json={"message": mensagem, "content": conteudo_b64, "sha": sha},
+        json={"message": mensagem, "content": conteudo_b64, "sha": sha_atual},
         timeout=15,
     )
-    resp.raise_for_status()
+    if not resp.ok:
+        detalhe = ""
+        try:
+            detalhe = resp.json().get("message", "")
+        except Exception:
+            detalhe = resp.text[:300]
+        st.error(f"Erro ao salvar no GitHub (HTTP {resp.status_code}): {detalhe}")
+        st.stop()
     st.cache_data.clear()
 
 
