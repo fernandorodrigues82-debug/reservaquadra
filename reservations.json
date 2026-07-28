@@ -23,13 +23,5 @@
     "dias_antecedencia_abertura": "Quantos dias antes a reserva abre (no seu caso, 7)",
     "status": "Use 'agendado' para ativar. Mude para 'cancelado' para desativar sem apagar."
   },
-  "reservas": [
-    {
-      "quadra": "Quadra de Tênis",
-      "data_desejada": "2026-08-03",
-      "horario_desejado": "07:00 - 08:00",
-      "dias_antecedencia_abertura": 7,
-      "status": "agendado"
-    }
-  ]
+  "reservas": []
 }
