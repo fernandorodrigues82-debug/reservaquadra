@@ -97,8 +97,9 @@ class TownSqClient:
     def tentar_reservar(self, data_desejada: date, horario_desejado: str) -> bool:
         """
         Tenta efetivar a reserva para a data/horário desejados.
-        horario_desejado pode ser um horário fixo ("10:00") ou o valor
-        especial "primeiro_disponivel", que pega o horário mais cedo livre.
+        horario_desejado pode ser um horário fixo ("10:00 - 11:00") ou o
+        valor especial "primeiro_disponivel", que pega o horário de 1 hora
+        mais cedo que ainda não está em "Fila de espera" (ou seja, livre).
 
         Retorna True se a reserva foi confirmada, False se o horário
         ainda não está disponível / já foi tomado por outra pessoa.
@@ -108,9 +109,9 @@ class TownSqClient:
         dia_numero = str(data_desejada.day)
 
         try:
-            # ETAPA 1 (confirmada): clicar na célula do dia certo no calendário,
-            # ignorando células "disabled" (dias passados/de outro mês, que
-            # podem repetir o mesmo número no início/fim da grade).
+            # ETAPA 1: clicar na célula do dia certo no calendário, ignorando
+            # células "disabled" (dias passados/de outro mês, que podem
+            # repetir o mesmo número no início/fim da grade).
             candidatos_dia = page.locator(
                 f"xpath=//div[contains(@class,'day-number') and normalize-space(text())='{dia_numero}']"
             ).all()
@@ -129,26 +130,80 @@ class TownSqClient:
                 return False
             page.wait_for_timeout(1500)
 
-            # TODO: ETAPA 2 (seleção do horário) — ainda placeholder até
-            # confirmarmos a estrutura real dos horários (STEP=horarios no
-            # debug_selectors.py). Por ora, tenta o texto do horário
-            # diretamente; "primeiro_disponivel" ainda não está implementado.
+            # ETAPA 2: escolher o horário. Os slots são botões com texto
+            # "HH:MM - HH:MM". Quando um horário de 1h está lotado, o botão
+            # de 1h aparece sozinho seguido de "Fila de espera" (sem as
+            # opções de meia-hora), então pulamos esses.
+            botoes_texto = page.locator("button").all_inner_texts()
+            padrao_hora_cheia = re.compile(r"^(\d{2}):(\d{2}) - (\d{2}):(\d{2})$")
+
+            indice_alvo = None
+            texto_alvo = None
             if horario_desejado == "primeiro_disponivel":
-                raise NotImplementedError(
-                    "Seleção de 'primeiro_disponivel' ainda não implementada — "
-                    "aguardando dados do STEP=horarios."
-                )
-            slot = page.get_by_text(horario_desejado, exact=True)
-            slot.wait_for(state="visible", timeout=3000)
-            slot.click()
+                for i, texto in enumerate(botoes_texto):
+                    m = padrao_hora_cheia.match(texto.strip())
+                    if not m:
+                        continue
+                    h_ini, m_ini, h_fim, m_fim = map(int, m.groups())
+                    duracao_min = (h_fim * 60 + m_fim) - (h_ini * 60 + m_ini)
+                    if duracao_min != 60:
+                        continue  # só considera o slot de 1h como "o horário do dia"
+                    proximo = botoes_texto[i + 1].strip() if i + 1 < len(botoes_texto) else ""
+                    if proximo == "Fila de espera":
+                        continue  # esse horário já está lotado, pula
+                    indice_alvo = i
+                    texto_alvo = texto.strip()
+                    break
+                if indice_alvo is None:
+                    logger.warning(f"Nenhum horário livre encontrado em {data_str}.")
+                    return False
+            else:
+                for i, texto in enumerate(botoes_texto):
+                    if texto.strip() == horario_desejado:
+                        indice_alvo = i
+                        texto_alvo = texto.strip()
+                        break
+                if indice_alvo is None:
+                    logger.warning(f"Horário {horario_desejado!r} não encontrado em {data_str}.")
+                    return False
 
-            # TODO: botão final de confirmação (provavelmente id="confirm-button",
-            # texto "Reservar" — confirmar com STEP=horarios)
-            page.get_by_role("button", name="Reservar").click()
+            page.locator("button").nth(indice_alvo).click(timeout=5000)
+            page.wait_for_timeout(1200)
+            logger.info(f"Horário selecionado: {texto_alvo}")
 
-            # TODO: elemento que confirma sucesso (toast, modal, etc.)
-            page.get_by_text("Reserva confirmada", exact=False).wait_for(timeout=5000)
-            logger.info(f"Reserva confirmada para {data_str} às {horario_desejado}.")
+            # ETAPA 3: aceitar os termos de uso — é um componente customizado
+            # (<sc-switch>), não um checkbox nativo. Precisa clicar no
+            # span.switch visível dentro de div.tsq-switch.
+            switches = page.locator(".tsq-switch .switch").all()
+            switch_clicado = False
+            for sw in switches:
+                if sw.is_visible():
+                    sw.click(timeout=5000)
+                    switch_clicado = True
+                    break
+            if not switch_clicado:
+                logger.warning("Toggle de 'aceito os termos de uso' não encontrado/visível.")
+                return False
+            page.wait_for_timeout(800)
+
+            # ETAPA 4: clicar em "Reservar" (id="confirm-button" é reusado
+            # por vários modais no app — precisamos do que estiver visível
+            # com esse texto específico).
+            confirmar_clicado = False
+            for el in page.locator("#confirm-button").all():
+                try:
+                    if el.is_visible() and el.inner_text().strip() == "Reservar":
+                        el.click(timeout=5000)
+                        confirmar_clicado = True
+                        break
+                except Exception:
+                    pass
+            if not confirmar_clicado:
+                logger.warning("Botão 'Reservar' não encontrado/visível após aceitar os termos.")
+                return False
+
+            page.wait_for_timeout(3000)
+            logger.info(f"Reserva enviada para {data_str} às {texto_alvo}.")
             return True
 
         except PWTimeout:
