@@ -30,6 +30,13 @@
       "horario_desejado": "primeiro_disponivel",
       "dias_antecedencia_abertura": 1,
       "status": "reservado"
+    },
+    {
+      "quadra": "Quadra de Tênis",
+      "data_desejada": "2026-07-31",
+      "horario_desejado": "primeiro_disponivel",
+      "dias_antecedencia_abertura": 1,
+      "status": "agendado"
     }
   ]
 }
