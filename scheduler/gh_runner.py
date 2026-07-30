@@ -1,19 +1,27 @@
 """
 Runner para GitHub Actions.
 
-O GitHub Actions dispara este script um pouco ANTES da meia-noite (via cron
-no workflow). O script então:
+O GitHub Actions dispara este script BEM ANTES da meia-noite (18:00
+Brasília, longe do pico de fila do GitHub por volta de 00:00 UTC). O
+script então:
   1. Lê as reservas pendentes (do arquivo reservations.json versionado no repo)
-  2. Faz login no TownSq com antecedência (para não perder tempo na hora H)
-  3. Fica em espera ativa até 00:00:00 do horário de Brasília
-  4. No instante exato, dispara as tentativas de reserva
-  5. Marca reservas pontuais bem-sucedidas como "reservado" no JSON, para
+  2. Se não houver nada pendente, encerra na hora — não fica de bobeira
+  3. Se houver, DORME sozinho (sem abrir navegador/sessão) até pouco antes
+     da meia-noite de Brasília — isso evita manter uma sessão logada aberta
+     por horas à toa, e absorve atrasos grandes do agendador do GitHub
+  4. Só então faz login no TownSq e espera o segundo exato da meia-noite
+  5. Dispara as tentativas de reserva
+  6. Marca reservas pontuais bem-sucedidas como "reservado" no JSON, para
      não tentar de novo nas próximas execuções
 
-Por que esperar dentro do script em vez de confiar no cron?
-Porque o cron do GitHub Actions costuma atrasar 10-30 min. Então acordamos
-mais cedo e controlamos o timing fino aqui dentro, garantindo o disparo no
-segundo exato em que a janela de reserva abre.
+Por que dois estágios de espera (dormir cedo, depois esperar fino perto da
+meia-noite) em vez de só confiar no horário do cron?
+Porque o GitHub Actions pode atrasar o disparo do cron por HORAS (não só
+minutos) em horários de pico — e o pico mais forte é logo na virada do dia
+em UTC (00:00-01:00 UTC), que cai perto da meia-noite de Brasília. Disparando
+bem mais cedo (18:00 Brasília / 21:00 UTC, longe desse pico) sobra margem de
+sobra mesmo com atraso de várias horas, e o job dorme sem custo até a hora
+certa em vez de ficar com o navegador aberto o tempo todo.
 """
 import json
 import logging
@@ -125,6 +133,35 @@ def montar_pendentes(dados, abertura_date):
     return pendentes
 
 
+def esperar_ate_horario_login(hora_login=23, minuto_login=40):
+    """
+    Dorme (SEM abrir navegador/sessão) até pouco antes da meia-noite, mesmo
+    que o job tenha começado bem mais cedo (ex: 18:00, para dar folga
+    contra atrasos grandes do agendador do GitHub). Se já passou desse
+    horário (ou já é madrugada), retorna na hora, sem esperar.
+    """
+    agora = datetime.now(BRASILIA)
+    if agora.hour < 12:
+        # Já estamos de madrugada (o job começou atrasado, depois da meia-
+        # noite) — não faz sentido esperar, já estamos "atrasados" mesmo.
+        return
+    alvo_hoje = agora.replace(hour=hora_login, minute=minuto_login, second=0, microsecond=0)
+    if agora >= alvo_hoje:
+        return  # já passou do horário de login hoje, segue direto
+
+    segundos = (alvo_hoje - agora).total_seconds()
+    logger.info(
+        f"Job começou cedo (folga contra atraso do GitHub). "
+        f"Dormindo {segundos/3600:.1f}h até {alvo_hoje} antes de logar..."
+    )
+    while True:
+        restante = (alvo_hoje - datetime.now(BRASILIA)).total_seconds()
+        if restante <= 0:
+            break
+        time.sleep(min(restante, 600))  # acorda a cada 10 min só para permitir logs
+    logger.info("Chegou a hora de logar, iniciando o navegador.")
+
+
 def esperar_ate_meia_noite():
     """Espera (com precisão) até 00:00:00 de Brasília. Se já passou, retorna já."""
     agora = datetime.now(BRASILIA)
@@ -162,6 +199,8 @@ def executar():
 
     logger.info(f"{len(pendentes)} reserva(s) pendente(s) para hoje.")
     houve_mudanca = False
+
+    esperar_ate_horario_login()
 
     with criar_cliente_do_env() as client:
         client.login()

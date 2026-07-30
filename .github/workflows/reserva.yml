@@ -1,12 +1,16 @@
 name: Reserva Automática de Quadra
 
 on:
-  # Agendado: 02:40 UTC = 23:40 de Brasília (UTC-3).
-  # Acorda 20 min antes da meia-noite para absorver o atraso típico do
-  # cron do GitHub (10-30 min). O script gh_runner.py espera até 00:00:00
-  # exato de Brasília antes de disparar as reservas.
+  # Agendado: 21:00 UTC = 18:00 de Brasília (UTC-3).
+  # Disparamos BEM mais cedo que a meia-noite de propósito: o GitHub Actions
+  # pode atrasar o disparo do cron por HORAS em horários de pico (o pico
+  # mais forte é logo na virada do dia em UTC, 00:00-01:00 UTC — perto da
+  # meia-noite de Brasília). Disparando às 18:00 (longe desse pico), sobra
+  # bastante margem mesmo com atraso grande. O script gh_runner.py dorme
+  # sozinho (sem abrir navegador) até perto da meia-noite de verdade, e só
+  # aí loga e dispara as reservas.
   schedule:
-    - cron: '40 2 * * *'
+    - cron: '0 21 * * *'
 
   # Permite disparar manualmente pelo botão "Run workflow" na aba Actions
   # (útil para testar sem esperar a meia-noite).
@@ -18,7 +22,10 @@ permissions:
 jobs:
   reservar:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Precisa cobrir do disparo (18:00) até pouco depois da meia-noite
+    # (~6h10min), mas o limite MÁXIMO de um job no GitHub Actions é 6h
+    # (360 min) — não dá pra passar disso. Deixamos folga dentro desse teto.
+    timeout-minutes: 355
 
     steps:
       - name: Baixar o código do repositório
