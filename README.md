@@ -10,7 +10,8 @@ computador ligado nem de servidor pago.
    reserva (ex: "toda terça-feira, primeiro horário livre"). Editável direto
    pelo GitHub ou pelo painel (veja abaixo).
 2. **GitHub Actions** (`.github/workflows/reserva.yml`) — dispara sozinho
-   todo dia às 23:40 (Brasília), espera até a meia-noite exata, confere se
+   todo dia às 18:00 (Brasília, longe do pico do GitHub perto da meia-noite),
+   dorme sozinho até perto da meia-noite, confere se
    alguma regra "abre" naquele instante, e se sim, executa a reserva.
 3. **`scraper/townsq_client.py`** — a automação em si (Playwright): login,
    navegação até a quadra, seleção do dia/horário, aceite dos termos, e
@@ -108,7 +109,7 @@ reservaquadra/
 ├── reservations.json                # Configuração das regras de reserva
 ├── requirements.txt
 ├── .github/workflows/
-│   ├── reserva.yml                  # Workflow de produção (roda todo dia às 23:40)
+│   ├── reserva.yml                  # Workflow de produção (dispara 18:00 Brasília, dorme até perto da meia-noite)
 │   └── debug.yml                    # Workflow de debug/investigação de seletores
 ├── scraper/
 │   ├── townsq_client.py             # Automação Playwright (login, navegação, reserva)
