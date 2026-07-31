@@ -56,13 +56,14 @@ class TownSqClient:
 
     def login(self):
         page = self._page
-        page.goto(self.login_url, wait_until="networkidle")
+        page.goto(self.login_url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(1000)
 
         # ETAPA 1 (confirmado via debug_selectors.py): preencher email e
         # clicar em "Next"/"Próximo". O TownSq usa login em duas etapas.
         page.fill('input[name="email"]', self.email)
         page.get_by_role("button", name=BOTAO_NEXT).click()
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
         page.wait_for_timeout(3000)  # SPA leva um instante para montar a tela seguinte
 
         # ETAPA 2 (confirmado via debug_selectors.py): preencher senha e
@@ -71,7 +72,7 @@ class TownSqClient:
         page.get_by_role("button", name=BOTAO_LOGIN).click()
 
         # Espera a navegação pós-login
-        page.wait_for_load_state("networkidle")
+        page.wait_for_load_state("domcontentloaded", timeout=60000)
         page.wait_for_timeout(2000)
         logger.info("Login realizado com sucesso.")
 
@@ -91,8 +92,13 @@ class TownSqClient:
         if mes_ano:
             url += f"?month={mes_ano}"
 
-        page.goto(url, wait_until="networkidle")
-        page.wait_for_timeout(1500)
+        # "domcontentloaded" em vez de "networkidle": bem na virada da meia-
+        # noite, o site fica sob carga pesada (todo mundo tentando reservar
+        # ao mesmo tempo) e a rede pode nunca ficar "ociosa" — isso trava a
+        # espera por "networkidle" por muito tempo. domcontentloaded resolve
+        # assim que o HTML carrega, sem depender da rede parar de vez.
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(2000)
 
     def selecionar_dia(self, data_desejada: date) -> bool:
         """
@@ -243,7 +249,8 @@ class TownSqClient:
             return False
 
     def recarregar_pagina_reserva(self):
-        self._page.reload(wait_until="networkidle")
+        self._page.reload(wait_until="domcontentloaded", timeout=60000)
+        self._page.wait_for_timeout(1000)
 
 
 def criar_cliente_do_env(headless_override: bool | None = None) -> TownSqClient:

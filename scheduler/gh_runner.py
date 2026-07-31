@@ -188,6 +188,24 @@ def esperar_ate_meia_noite():
     logger.info("Meia-noite! Disparando tentativas de reserva.")
 
 
+def navegar_com_retry(client, quadra, tentativas=3, espera_segundos=3):
+    """
+    Navega até a página da quadra, tentando de novo em caso de falha (ex:
+    timeout por causa de sobrecarga do site bem na virada da meia-noite,
+    quando muita gente tenta reservar ao mesmo tempo).
+    """
+    ultima_excecao = None
+    for i in range(1, tentativas + 1):
+        try:
+            client.navegar_para_reserva_quadra(quadra)
+            return
+        except Exception as e:
+            ultima_excecao = e
+            logger.warning(f"Falha ao navegar até a quadra (tentativa {i}/{tentativas}): {e}")
+            time.sleep(espera_segundos)
+    raise ultima_excecao
+
+
 def executar():
     dados = carregar_dados()
     abertura_date = calcular_abertura_date()
@@ -206,24 +224,29 @@ def executar():
         client.login()
 
         for reserva in pendentes:
-            client.navegar_para_reserva_quadra(reserva["quadra"])
+            navegar_com_retry(client, reserva["quadra"])
 
         esperar_ate_meia_noite()
 
         for reserva in pendentes:
             data_desejada = datetime.strptime(reserva["data_desejada"], "%Y-%m-%d").date()
-            client.navegar_para_reserva_quadra(reserva["quadra"])
-            sucesso = False
-            for tentativa in range(1, MAX_TENTATIVAS + 1):
-                ok = client.tentar_reservar(data_desejada, reserva["horario_desejado"])
-                if ok:
-                    sucesso = True
-                    logger.info(f"✅ Reserva CONFIRMADA: {reserva['quadra']} "
-                                f"{reserva['data_desejada']} {reserva['horario_desejado']}")
-                    break
-                logger.info(f"Tentativa {tentativa}/{MAX_TENTATIVAS} sem sucesso...")
-                time.sleep(INTERVALO_ENTRE_TENTATIVAS_SEGUNDOS)
-                client.recarregar_pagina_reserva()
+            try:
+                navegar_com_retry(client, reserva["quadra"])
+                sucesso = False
+                for tentativa in range(1, MAX_TENTATIVAS + 1):
+                    ok = client.tentar_reservar(data_desejada, reserva["horario_desejado"])
+                    if ok:
+                        sucesso = True
+                        logger.info(f"✅ Reserva CONFIRMADA: {reserva['quadra']} "
+                                    f"{reserva['data_desejada']} {reserva['horario_desejado']}")
+                        break
+                    logger.info(f"Tentativa {tentativa}/{MAX_TENTATIVAS} sem sucesso...")
+                    time.sleep(INTERVALO_ENTRE_TENTATIVAS_SEGUNDOS)
+                    client.recarregar_pagina_reserva()
+            except Exception as e:
+                logger.error(f"❌ Erro inesperado processando {reserva['quadra']} "
+                             f"{reserva['data_desejada']}: {e}")
+                continue
 
             if not sucesso:
                 logger.error(f"❌ Falhou após {MAX_TENTATIVAS} tentativas: "
