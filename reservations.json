@@ -26,13 +26,6 @@
   "reservas": [
     {
       "quadra": "Quadra de Tênis",
-      "data_desejada": "2026-08-01",
-      "horario_desejado": "primeiro_disponivel",
-      "dias_antecedencia_abertura": 1,
-      "status": "reservado"
-    },
-    {
-      "quadra": "Quadra de Tênis",
       "data_desejada": "2026-08-02",
       "horario_desejado": "primeiro_disponivel",
       "dias_antecedencia_abertura": 1,
