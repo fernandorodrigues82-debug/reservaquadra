@@ -436,8 +436,10 @@ with st.expander("⚠️ Como isso funciona por trás dos panos"):
     st.markdown("""
     - Este painel lê e grava `reservations.json` **direto no seu repositório GitHub**.
     - Quem executa a reserva de fato é o **GitHub Actions** (`.github/workflows/reserva.yml`),
-      que dispara automaticamente todo dia às 23:40 (Brasília) e verifica se alguma
-      regra ou reserva pontual "abre" naquela meia-noite.
+      que dispara todo dia às 18:00 (Brasília), dorme sozinho até perto da meia-noite
+      (evitando manter uma sessão aberta à toa) e então confere se alguma regra ou
+      reserva pontual "abre" naquela virada.
     - Suas credenciais do TownSq ficam nos **Secrets** do repositório GitHub — nunca aparecem aqui.
     - Se quiser acompanhar os logs de cada execução, veja a aba **Actions** do GitHub.
     """)
+
